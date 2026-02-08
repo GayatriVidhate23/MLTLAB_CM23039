@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Digit Recognition: CNN vs Dense</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 720px;
+            margin: auto;
+            text-align: center;
+            background: #f7f7f7;
+        }
+        canvas {
+            border: 2px solid #000;
+            background: black;
+            cursor: crosshair;
+            margin-bottom: 12px;
+        }
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 22px;
+        }
+        .panel {
+            border: 1px solid #ccc;
+            padding: 16px;
+            border-radius: 8px;
+            background: #fff;
+        }
+        button {
+            padding: 9px 18px;
+            border-radius: 5px;
+            border: none;
+            background: #222;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .output {
+            font-size: 2.8rem;
+            font-weight: bold;
+        }
+        #msg {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Handwritten Digit Recognition</h1>
+<p id="msg">Loading neural network models...</p>
+
+<canvas id="drawPad" width="140" height="140"></canvas>
+<br>
+
+<button onclick="resetPad()">Clear</button>
+<button id="checkBtn" onclick="predictDigit()" disabled>Predict</button>
+
+<div class="result-grid">
+    <div class="panel">
+        <strong>CNN Result</strong>
+        <div id="cnnResult" class="output" style="color:#2ecc71;">-</div>
+    </div>
+    <div class="panel">
+        <strong>Dense Result</strong>
+        <div id="denseResult" class="output" style="color:#3498db;">-</div>
+    </div>
+</div>
+
+<script>
+    let cnnNet, denseNet;
+    const canvas = document.getElementById("drawPad");
+    const ctx = canvas.getContext("2d");
+    let paintMode = false;
+
+    // ===== Model Initialization =====
+    async function loadModels() {
+
+        // CNN Network
+        cnnNet = tf.sequential();
+        cnnNet.add(tf.layers.conv2d({
+            inputShape: [28, 28, 1],
+            filters: 14,
+            kernelSize: 3,
+            activation: "relu"
+        }));
+        cnnNet.add(tf.layers.flatten());
+        cnnNet.add(tf.layers.dense({ units: 10, activation: "softmax" }));
+        cnnNet.compile({
+            optimizer: "adam",
+            loss: "categoricalCrossentropy"
+        });
+
+        // Dense Network
+        denseNet = tf.sequential();
+        denseNet.add(tf.layers.flatten({ inputShape: [28, 28, 1] }));
+        denseNet.add(tf.layers.dense({ units: 100, activation: "relu" }));
+        denseNet.add(tf.layers.dense({ units: 10, activation: "softmax" }));
+        denseNet.compile({
+            optimizer: "adam",
+            loss: "categoricalCrossentropy"
+        });
+
+        document.getElementById("msg").innerText = "Models ready. Draw a digit.";
+        document.getElementById("checkBtn").disabled = false;
+    }
+
+    // ===== Drawing Logic =====
+    canvas.onmousedown = () => paintMode = true;
+    canvas.onmouseup = () => {
+        paintMode = false;
+        ctx.beginPath();
+    };
+
+    canvas.onmousemove = (e) => {
+        if (!paintMode) return;
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(e.offsetX, e.offsetY, 7, 0, Math.PI * 2);
+        ctx.fill();
+    };
+
+    function resetPad() {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, 140, 140);
+        document.getElementById("cnnResult").innerText = "-";
+        document.getElementById("denseResult").innerText = "-";
+    }
+
+    // ===== Prediction =====
+    function predictDigit() {
+        tf.tidy(() => {
+            let img = tf.browser.fromPixels(canvas, 1);
+            img = tf.image.resizeBilinear(img, [28, 28]);
+            img = img.toFloat().div(255).expandDims(0);
+
+            const cnnOut = cnnNet.predict(img).argMax(1).dataSync()[0];
+            const denseOut = denseNet.predict(img).argMax(1).dataSync()[0];
+
+            document.getElementById("cnnResult").innerText = cnnOut;
+            document.getElementById("denseResult").innerText = denseOut;
+
+            console.log("CNN Prediction:", cnnOut, "| Dense Prediction:", denseOut);
+        });
+    }
+
+    loadModels();
+    resetPad();
+</script>
+
+</body>
+</html>
+
+<!-- Assignment 3 Practical -->

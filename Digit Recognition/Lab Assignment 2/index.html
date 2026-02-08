@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Handwritten Digit Classifier</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 520px;
+            margin: 30px auto;
+            text-align: center;
+            background: #fafafa;
+        }
+        .box {
+            border: 1px solid #ddd;
+            padding: 22px;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+        canvas {
+            border: 2px solid #111;
+            background: black;
+            cursor: crosshair;
+            margin: 12px 0;
+        }
+        button {
+            padding: 9px 16px;
+            margin: 6px;
+            border-radius: 5px;
+            border: none;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #aaa;
+        }
+        #info {
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        #result {
+            font-size: 2rem;
+            color: #2ecc71;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Digit Recognition System</h1>
+
+<div class="box">
+    <div id="info">Loading model...</div>
+
+    <canvas id="drawArea" width="140" height="140"></canvas>
+    <br>
+
+    <button onclick="resetCanvas()">Reset</button>
+    <button id="checkBtn" onclick="classifyDigit()" disabled>Predict</button>
+
+    <h2 id="result">Digit: -</h2>
+</div>
+
+<script>
+    let net;
+    const canvas = document.getElementById("drawArea");
+    const ctx = canvas.getContext("2d");
+    let isDrawing = false;
+
+    // ===== Initialize Model =====
+    async function loadModel() {
+        net = tf.sequential();
+        net.add(tf.layers.conv2d({
+            inputShape: [28, 28, 1],
+            filters: 12,
+            kernelSize: 3,
+            activation: "relu"
+        }));
+        net.add(tf.layers.maxPooling2d({ poolSize: 2 }));
+        net.add(tf.layers.flatten());
+        net.add(tf.layers.dense({ units: 10, activation: "softmax" }));
+
+        net.compile({
+            optimizer: "adam",
+            loss: "categoricalCrossentropy",
+            metrics: ["accuracy"]
+        });
+
+        document.getElementById("info").innerText = "Training model (demo data)...";
+
+        // Dummy training (for lab demo)
+        const xDemo = tf.randomNormal([400, 28, 28, 1]);
+        const yDemo = tf.oneHot(
+            tf.tensor1d(
+                Array.from({ length: 400 }, () => Math.floor(Math.random() * 10)),
+                "int32"
+            ),
+            10
+        );
+
+        await net.fit(xDemo, yDemo, { epochs: 2 });
+
+        xDemo.dispose();
+        yDemo.dispose();
+
+        document.getElementById("info").innerText = "Model ready. Draw a digit!";
+        document.getElementById("checkBtn").disabled = false;
+    }
+
+    // ===== Drawing Logic =====
+    canvas.onmousedown = () => isDrawing = true;
+    canvas.onmouseup = () => {
+        isDrawing = false;
+        ctx.beginPath();
+    };
+
+    canvas.onmousemove = (e) => {
+        if (!isDrawing) return;
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(e.offsetX, e.offsetY, 7, 0, Math.PI * 2);
+        ctx.fill();
+    };
+
+    function resetCanvas() {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, 140, 140);
+        document.getElementById("result").innerText = "Digit: -";
+    }
+
+    // ===== Prediction =====
+    function classifyDigit() {
+        tf.tidy(() => {
+            let img = tf.browser.fromPixels(canvas, 1);
+            img = tf.image.resizeBilinear(img, [28, 28]);
+            img = img.toFloat().div(255).expandDims(0);
+
+            const output = net.predict(img);
+            const digit = output.argMax(1).dataSync()[0];
+
+            document.getElementById("result").innerText = "Digit: " + digit;
+            console.log("Predicted digit:", digit);
+        });
+    }
+
+    loadModel();
+    resetCanvas();
+</script>
+
+</body>
+</html>
+
+<!-- Assignment Practical -->
