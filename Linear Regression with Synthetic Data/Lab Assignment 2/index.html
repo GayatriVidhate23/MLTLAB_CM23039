@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Learning Rate Experiment – TFJS</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            width: 850px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .console-log {
+            background: #1e272e;
+            color: #d2dae2;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: Consolas, monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .ok { color: #2ecc71; font-weight: bold; }
+        .slow { color: #f1c40f; font-weight: bold; }
+        .bad { color: #e74c3c; font-weight: bold; }
+        code {
+            background: #eee;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #d63384;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>Learning Rate vs Convergence</h1>
+    <p>Run experiments using browser console.</p>
+    <p>Example: <code>runTest(0.01)</code></p>
+
+    <canvas id="lrChart"></canvas>
+
+    <div class="console-log" id="logArea">
+        > Console ready. Try runTest(0.001), runTest(0.05), runTest(0.5)
+    </div>
+
+    <button onclick="location.reload()" style="margin-top:15px;">Reset</button>
+</div>
+
+<script>
+    // ===============================
+    // Chart setup
+    // ===============================
+    const ctx = document.getElementById("lrChart").getContext("2d");
+
+    const lrChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({ length: 26 }, (_, i) => i),
+            datasets: []
+        },
+        options: {
+            plugins: {
+                legend: { position: 'top' }
+            },
+            scales: {
+                x: { title: { display: true, text: 'Epoch' } },
+                y: { title: { display: true, text: 'Loss (MSE)' } }
+            }
+        }
+    });
+
+    // ===============================
+    // Sample data (y = 2x)
+    // ===============================
+    const samples = [
+        {x:1, y:2},
+        {x:2, y:4},
+        {x:3, y:6},
+        {x:4, y:8},
+        {x:5, y:10}
+    ];
+
+    // ===============================
+    // Console Function
+    // ===============================
+    window.runTest = async (learningRate) => {
+
+        const model = tf.sequential();
+        model.add(tf.layers.dense({ units: 1, inputShape: [1] }));
+        model.compile({
+            optimizer: tf.train.sgd(learningRate),
+            loss: 'meanSquaredError'
+        });
+
+        const xs = tf.tensor2d(samples.map(p => p.x), [samples.length, 1]);
+        const ys = tf.tensor2d(samples.map(p => p.y), [samples.length, 1]);
+
+        let lossHistory = [];
+        let exploded = false;
+
+        console.log(`Testing learning rate: ${learningRate}`);
+
+        await model.fit(xs, ys, {
+            epochs: 25,
+            callbacks: {
+                onEpochEnd: (epoch, logs) => {
+                    lossHistory.push(logs.loss);
+                    if (!isFinite(logs.loss) || logs.loss > 5000) {
+                        exploded = true;
+                        model.stopTraining = true;
+                    }
+                }
+            }
+        });
+
+        const color = `hsl(${Math.random() * 360}, 70%, 50%)`;
+
+        lrChart.data.datasets.push({
+            label: `LR ${learningRate}${exploded ? ' (Diverged)' : ''}`,
+            data: lossHistory,
+            borderColor: color,
+            fill: false,
+            tension: 0.3,
+            borderWidth: 2
+        });
+
+        lrChart.update();
+
+        const finalLoss = lossHistory.at(-1);
+        let msg = "Converged";
+        let cls = "ok";
+
+        if (exploded) {
+            msg = "Diverged";
+            cls = "bad";
+        } else if (finalLoss > 1) {
+            msg = "Slow convergence";
+            cls = "slow";
+        }
+
+        const log = document.getElementById("logArea");
+        log.innerHTML += `<br>> <span class="${cls}">[LR ${learningRate}]</span> ${msg}, Final Loss: ${exploded ? '∞' : finalLoss.toFixed(5)}`;
+        log.scrollTop = log.scrollHeight;
+
+        xs.dispose();
+        ys.dispose();
+        model.dispose();
+    };
+
+    // Extra console helper (for viva)
+    window.clearGraph = () => {
+        lrChart.data.datasets = [];
+        lrChart.update();
+        document.getElementById("logArea").innerHTML = "> Cleared all experiments";
+        console.warn("All tests cleared");
+    };
+</script>
+
+</body>
+</html>
+
+<!-- Assignment 2 Practical -->

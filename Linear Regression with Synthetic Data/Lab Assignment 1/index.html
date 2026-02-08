@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TFJS Regression – Console Control</title>
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f3f5;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .box {
+            width: 800px;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #343a40;
+        }
+        .note {
+            background: #e7f5ff;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="box">
+    <h2>TensorFlow.js Regression (Console Based)</h2>
+    <p>Open <b>Console (F12)</b> and use commands.</p>
+
+    <div class="note">
+        addPoint(x, y)<br>
+        showData()<br>
+        trainModel()<br>
+        clearData()<br>
+        modelSummary()
+    </div>
+
+    <canvas id="graph"></canvas>
+</div>
+
+<script>
+    // ===============================
+    // Data
+    // ===============================
+    let dataPoints = [
+        {x: 1, y: 2},
+        {x: 2, y: 4},
+        {x: 3, y: 6},
+        {x: 4, y: 8},
+        {x: 5, y: 10}
+    ];
+
+    // ===============================
+    // Chart
+    // ===============================
+    const ctx = document.getElementById("graph");
+
+    const chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Actual Data',
+                    data: dataPoints,
+                    backgroundColor: '#339af0',
+                    pointRadius: 6
+                },
+                {
+                    label: 'Prediction',
+                    data: [],
+                    type: 'line',
+                    borderColor: '#fa5252',
+                    fill: false,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            scales: {
+                x: { type: 'linear', position: 'bottom' }
+            }
+        }
+    });
+
+    // ===============================
+    // TensorFlow Model
+    // ===============================
+    const model = tf.sequential();
+    model.add(tf.layers.dense({ units: 8, activation: 'relu', inputShape: [1] }));
+    model.add(tf.layers.dense({ units: 1 }));
+    model.compile({
+        optimizer: tf.train.sgd(0.01),
+        loss: 'meanSquaredError'
+    });
+
+    // ===============================
+    // Train + Predict
+    // ===============================
+    async function trainModel() {
+        if (dataPoints.length === 0) {
+            console.warn("No data to train");
+            return;
+        }
+
+        const xs = tf.tensor2d(dataPoints.map(p => p.x), [dataPoints.length, 1]);
+        const ys = tf.tensor2d(dataPoints.map(p => p.y), [dataPoints.length, 1]);
+
+        await model.fit(xs, ys, { epochs: 70 });
+
+        // Prediction line
+        let xVals = [];
+        for (let i = 0; i <= 6; i += 0.5) xVals.push(i);
+
+        const px = tf.tensor2d(xVals, [xVals.length, 1]);
+        const py = model.predict(px);
+        const yVals = await py.data();
+
+        chart.data.datasets[1].data =
+            xVals.map((x, i) => ({ x, y: yVals[i] }));
+
+        chart.update();
+
+        xs.dispose();
+        ys.dispose();
+        px.dispose();
+        py.dispose();
+
+        console.log("Training complete");
+    }
+
+    // ===============================
+    // Console Commands
+    // ===============================
+    window.addPoint = (x, y) => {
+        dataPoints.push({ x, y });
+        chart.data.datasets[0].data = dataPoints;
+        trainModel();
+        console.log(`Point added: (${x}, ${y})`);
+    };
+
+    window.showData = () => {
+        console.table(dataPoints);
+    };
+
+    window.clearData = () => {
+        dataPoints = [];
+        chart.data.datasets[0].data = [];
+        chart.data.datasets[1].data = [];
+        chart.update();
+        console.warn("Data cleared");
+    };
+
+    window.modelSummary = () => {
+        model.summary();
+    };
+
+    // Initial training
+    trainModel();
+</script>
+
+</body>
+</html>
+
+<!-- TFJS Console Regression Practical -->

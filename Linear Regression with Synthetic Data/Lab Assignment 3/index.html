@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Model Generalization – TFJS</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            width: 850px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background: #f1f3f5;
+        }
+        .good { color: #2ecc71; font-weight: bold; }
+        .bad { color: #e74c3c; font-weight: bold; }
+        .console-box {
+            background: #2c3e50;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Consolas, monospace;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 18px;
+            background: #339af0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h2>Model Generalization Test</h2>
+    <p>Training Function: <b>y = 2x</b> (x = 1 to 5)</p>
+    <p>Unseen Inputs: <b>6, 10, -2, 25</b></p>
+
+    <div class="console-box">
+        Console command: <b>predictValue(12)</b>
+    </div>
+
+    <div class="grid">
+        <canvas id="chart"></canvas>
+
+        <div>
+            <h3>Prediction Results</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>X</th>
+                        <th>Expected</th>
+                        <th>Predicted</th>
+                        <th>Error %</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <button onclick="trainAndTest()">Train & Test Model</button>
+</div>
+
+<script>
+    const ctx = document.getElementById("chart").getContext("2d");
+    let model;
+
+    const trainX = [1, 2, 3, 4, 5];
+    const trainY = [2, 4, 6, 8, 10];
+    const testX = [6, 10, -2, 25];
+
+    const chart = new Chart(ctx, {
+        type: "scatter",
+        data: {
+            datasets: [
+                {
+                    label: "Training Data",
+                    data: trainX.map((x, i) => ({ x, y: trainY[i] })),
+                    backgroundColor: "#339af0"
+                },
+                {
+                    label: "Unseen Predictions",
+                    data: [],
+                    backgroundColor: "#f59f00",
+                    pointStyle: "rectRot",
+                    radius: 7
+                }
+            ]
+        }
+    });
+
+    async function trainAndTest() {
+        console.log("Training started...");
+
+        model = tf.sequential();
+        model.add(tf.layers.dense({ units: 1, inputShape: [1] }));
+        model.compile({
+            optimizer: tf.train.sgd(0.05),
+            loss: "meanSquaredError"
+        });
+
+        const xs = tf.tensor2d(trainX, [trainX.length, 1]);
+        const ys = tf.tensor2d(trainY, [trainY.length, 1]);
+
+        await model.fit(xs, ys, { epochs: 150, verbose: 0 });
+
+        const testTensor = tf.tensor2d(testX, [testX.length, 1]);
+        const output = model.predict(testTensor);
+        const predictions = await output.data();
+
+        const table = document.getElementById("resultBody");
+        table.innerHTML = "";
+        let plotPoints = [];
+
+        testX.forEach((x, i) => {
+            const expected = x * 2;
+            const predicted = predictions[i];
+            const error = expected !== 0
+                ? Math.abs((predicted - expected) / expected) * 100
+                : 0;
+
+            const cls = error < 5 ? "good" : "bad";
+
+            table.innerHTML += `
+                <tr>
+                    <td>${x}</td>
+                    <td>${expected}</td>
+                    <td>${predicted.toFixed(2)}</td>
+                    <td class="${cls}">${error.toFixed(1)}%</td>
+                </tr>
+            `;
+
+            plotPoints.push({ x, y: predicted });
+        });
+
+        chart.data.datasets[1].data = plotPoints;
+        chart.update();
+
+        xs.dispose();
+        ys.dispose();
+        testTensor.dispose();
+        output.dispose();
+
+        console.log("Training completed.");
+    }
+
+    // ===== Console Function =====
+    window.predictValue = async (x) => {
+        if (!model) {
+            console.error("Train the model first!");
+            return;
+        }
+        const t = tf.tensor2d([x], [1, 1]);
+        const y = model.predict(t);
+        const r = await y.data();
+
+        console.log(
+            `%cInput: ${x} | Predicted: ${r[0].toFixed(4)} | Expected: ${x*2}`,
+            "background:#222;color:#bada55;padding:4px;"
+        );
+
+        t.dispose();
+        y.dispose();
+    };
+
+    trainAndTest();
+</script>
+
+</body>
+</html>
+
+<!-- Assignment Practical -->
