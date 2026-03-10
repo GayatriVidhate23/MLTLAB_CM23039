@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Image Classification using MobileNet</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:linear-gradient(120deg,#84fab0,#8fd3f4);
+min-height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+}
+
+.container{
+
+background:rgba(255,255,255,0.25);
+backdrop-filter:blur(12px);
+
+padding:40px;
+border-radius:20px;
+
+width:700px;
+text-align:center;
+
+}
+
+button{
+
+padding:12px 20px;
+border:none;
+border-radius:8px;
+
+background:#2c7be5;
+color:white;
+
+cursor:pointer;
+
+}
+
+button:hover{
+background:#1a5fd1;
+}
+
+.card{
+
+background:rgba(255,255,255,0.4);
+padding:20px;
+margin-top:20px;
+border-radius:12px;
+
+}
+
+img{
+margin-top:20px;
+max-width:300px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Image Classification</h1>
+
+<p><b>Gayatri Vidhate - CM23039</b></p>
+
+<p>Using MobileNet Pre-trained Model</p>
+
+<input type="file" id="imageUpload">
+
+<br><br>
+
+<button onclick="classifyImage()">Classify Image</button>
+
+<br>
+
+<img id="preview">
+
+<div class="card">
+
+<h3 id="result">Prediction Result</h3>
+
+</div>
+
+</div>
+
+<script>
+
+let model
+
+async function loadModel(){
+
+model=await mobilenet.load()
+
+console.log("MobileNet Loaded")
+
+}
+
+loadModel()
+
+function classifyImage(){
+
+const file=document.getElementById("imageUpload").files[0]
+
+const img=document.getElementById("preview")
+
+img.src=URL.createObjectURL(file)
+
+img.onload=async function(){
+
+const predictions=await model.classify(img)
+
+document.getElementById("result").innerHTML=
+
+"Prediction: "+predictions[0].className+
+"<br> Confidence: "+(predictions[0].probability*100).toFixed(2)+"%"
+
+}
+
+}
+
+</script>
+
+</body>
+
+</html>
