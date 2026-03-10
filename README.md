@@ -4,23 +4,21 @@ I'm a passionate developer exploring the world of coding, open-source, and techn
 
 🔭 I’m currently working on
 
-Developing [your current project or area of interest]
 Improving my skills in Python, JavaScript, and web development
 
-🌱 I’m currently learning
 
-Advanced web frameworks (React, Node.js)
-Data structures and algorithms
-Cloud technologies (AWS, Azure)
+Machine Learning Tool Lab
+Overview
 
-💻 Skills
+Machine Learning Tool Lab is an interactive platform designed to help students, data enthusiasts, and researchers experiment with machine learning algorithms. It provides a hands-on environment for building, training, and evaluating models on various datasets. The lab emphasizes learning through practice and experimentation.
 
-Languages: Python, JavaScript, HTML, CSS
-Frameworks: React, Node.js, Flask
-Tools: Git, GitHub, VS Code, Docker
+Features
+Supervised Learning: Implement and test algorithms like Linear Regression, Logistic Regression, Decision Trees, Random Forests, and Support Vector Machines.
+Unsupervised Learning: Explore clustering methods such as K-Means, Hierarchical Clustering, and DBSCAN.
+Data Preprocessing: Tools for cleaning, normalizing, and transforming datasets.
+Visualization: Generate plots for data exploration, model performance, and algorithm comparisons.
+Experiment Tracking: Keep track of model parameters, metrics, and results for easy comparison.
+User-Friendly Interface: Intuitive dashboard for running experiments without deep coding knowledge.
 
 📫 How to reach me
-
-Email: [your email]
-LinkedIn: [your LinkedIn profile]
-Twitter: [your Twitter handle]
+Email: [gayatrividhate.aiml23@sbjit.edu.in]
