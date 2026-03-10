@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Email Spam Detection</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+*{
+box-sizing:border-box;
+font-family:'Segoe UI',sans-serif;
+}
+
+body{
+margin:0;
+min-height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+
+background:linear-gradient(120deg,#ff9a9e,#fad0c4,#fad0c4,#fbc2eb,#a6c1ee);
+background-size:300% 300%;
+animation:gradientMove 12s ease infinite;
+}
+
+@keyframes gradientMove{
+0%{background-position:0% 50%;}
+50%{background-position:100% 50%;}
+100%{background-position:0% 50%;}
+}
+
+.container{
+
+width:900px;
+padding:40px;
+
+background:rgba(255,255,255,0.2);
+border-radius:20px;
+
+backdrop-filter:blur(15px);
+-webkit-backdrop-filter:blur(15px);
+
+border:1px solid rgba(255,255,255,0.3);
+
+box-shadow:0 8px 30px rgba(0,0,0,0.2);
+
+text-align:center;
+
+}
+
+h1{
+margin-bottom:5px;
+color:#1f2937;
+}
+
+.subtitle{
+color:#374151;
+margin-bottom:25px;
+font-weight:bold;
+}
+
+button{
+
+background:rgba(255,255,255,0.3);
+border:none;
+padding:12px 22px;
+border-radius:10px;
+
+cursor:pointer;
+margin:10px;
+font-size:14px;
+
+backdrop-filter:blur(10px);
+
+transition:0.3s;
+
+}
+
+button:hover{
+background:rgba(255,255,255,0.5);
+transform:scale(1.05);
+}
+
+textarea{
+
+width:100%;
+height:90px;
+
+padding:10px;
+border-radius:10px;
+
+border:none;
+outline:none;
+
+background:rgba(255,255,255,0.4);
+
+margin-top:10px;
+
+}
+
+.status{
+
+margin-top:10px;
+font-weight:bold;
+color:#1f2937;
+
+}
+
+.resultBox{
+
+display:flex;
+gap:20px;
+margin-top:30px;
+
+}
+
+.card{
+
+flex:1;
+
+background:rgba(255,255,255,0.25);
+
+padding:20px;
+
+border-radius:15px;
+
+backdrop-filter:blur(10px);
+
+}
+
+canvas{
+margin-top:30px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Email Spam Detection</h1>
+
+<div class="subtitle">
+Gayatri Vidhate - CM23039
+</div>
+
+<p>Machine Learning using TensorFlow.js</p>
+
+<input type="file" id="csvFile">
+
+<br>
+
+<button onclick="loadCSV()">Upload Dataset</button>
+<button onclick="trainModel()">Train Model</button>
+
+<div id="status" class="status">
+Waiting for dataset...
+</div>
+
+<br><br>
+
+<textarea id="sentence" placeholder="Enter email message"></textarea>
+
+<br>
+
+<button onclick="predict()">Check Spam</button>
+
+<div class="resultBox">
+
+<div class="card">
+
+<h3>Prediction</h3>
+<div id="result">-</div>
+
+</div>
+
+<div class="card">
+
+<h3>Confidence</h3>
+<div id="confidence">-</div>
+
+</div>
+
+</div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+<script>
+
+let texts=[]
+let labels=[]
+let tokenizer={}
+let wordIndex=1
+
+let model
+
+// LOAD DATASET
+
+function loadCSV(){
+
+const file=document.getElementById("csvFile").files[0]
+
+texts=[]
+labels=[]
+tokenizer={}
+wordIndex=1
+
+Papa.parse(file,{
+
+header:true,
+skipEmptyLines:true,
+
+complete:function(results){
+
+results.data.forEach(row=>{
+
+if(row.text && row.label){
+
+texts.push(row.text)
+labels.push(Number(row.label))
+
+}
+
+})
+
+buildTokenizer()
+
+document.getElementById("status").innerHTML=
+"Dataset Loaded ("+texts.length+" samples)"
+
+}
+
+})
+
+}
+
+// TOKENIZER
+
+function buildTokenizer(){
+
+texts.forEach(sentence=>{
+
+sentence.split(/\s+/).forEach(word=>{
+
+word=word.toLowerCase()
+
+if(!tokenizer[word]){
+tokenizer[word]=wordIndex++
+}
+
+})
+
+})
+
+}
+
+// ENCODE
+
+function encode(sentence){
+
+return sentence
+.toLowerCase()
+.split(/\s+/)
+.map(w=>tokenizer[w]||0)
+
+}
+
+// PAD
+
+function pad(seq){
+
+const max=8
+
+while(seq.length<max)
+seq.push(0)
+
+return seq.slice(0,max)
+
+}
+
+// TRAIN MODEL
+
+async function trainModel(){
+
+document.getElementById("status").innerHTML=
+"Training model... please wait"
+
+const xs=tf.tensor2d(texts.map(t=>pad(encode(t))))
+const ys=tf.tensor2d(labels,[labels.length,1])
+
+model=tf.sequential()
+
+model.add(tf.layers.embedding({
+inputDim:1000,
+outputDim:16,
+inputLength:8
+}))
+
+model.add(tf.layers.flatten())
+
+model.add(tf.layers.dense({
+units:1,
+activation:'sigmoid'
+}))
+
+model.compile({
+optimizer:'adam',
+loss:'binaryCrossentropy',
+metrics:['accuracy']
+})
+
+await model.fit(xs,ys,{
+epochs:10,
+batchSize:4
+})
+
+document.getElementById("status").innerHTML=
+"✔ Model trained successfully"
+
+}
+
+// PREDICT
+
+async function predict(){
+
+const text=document.getElementById("sentence").value
+
+const input=tf.tensor2d([pad(encode(text))])
+
+const prediction=await model.predict(input).data()
+
+const value=prediction[0]
+
+const label=value>0.5?"Spam":"Not Spam"
+
+document.getElementById("result").innerHTML=label
+
+document.getElementById("confidence").innerHTML=
+(value*100).toFixed(2)+" %"
+
+drawChart(value)
+
+}
+
+// CHART
+
+function drawChart(value){
+
+const ctx=document.getElementById("chart")
+
+new Chart(ctx,{
+
+type:'bar',
+
+data:{
+
+labels:["Spam Probability"],
+
+datasets:[{
+
+label:"Confidence",
+data:[value],
+
+backgroundColor:[
+"rgba(255,255,255,0.6)"
+]
+
+}]
+
+},
+
+options:{
+
+scales:{
+y:{
+beginAtZero:true,
+max:1
+}
+}
+
+}
+
+})
+
+}
+
+</script>
+
+</body>
+
+</html>
