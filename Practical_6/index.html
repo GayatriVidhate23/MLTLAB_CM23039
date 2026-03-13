@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pose Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
+<style>
+  :root {
+    --bg:    #f5f7fa;
+    --white: #ffffff;
+    --ink:   #1a2030;
+    --muted: #7a8599;
+    --border:#e4e8f0;
+    --blue:  #3b6ef0;
+    --stand: #16a34a;
+    --sit:   #d97706;
+    --shadow:0 2px 18px rgba(0,0,0,0.07);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding:36px 20px 60px}
+  .page{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+  header{text-align:center;padding-bottom:24px;border-bottom:1px solid var(--border)}
+  .prac-tag{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  h1{font-family:'DM Serif Display',serif;font-size:34px;font-weight:400;color:var(--ink);margin-bottom:6px}
+  .byline{font-size:13px;color:var(--muted)}
+
+  .layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}
+
+  .card{background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+  .card-title{padding:13px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+  .card-body{padding:18px}
+
+  .btn{width:100%;padding:11px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn+.btn{margin-top:8px}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{background:#2d5ce0;transform:translateY(-1px);box-shadow:0 4px 14px rgba(59,110,240,.3)}
+  .btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+  .btn-outline{background:transparent;color:var(--blue);border:1.5px solid rgba(59,110,240,.3)}
+  .btn-outline:hover{background:rgba(59,110,240,.06);border-color:var(--blue)}
+  .btn-outline:disabled{opacity:.3;cursor:not-allowed}
+  .btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border);font-weight:500}
+  .btn-ghost:hover{color:var(--ink);border-color:#c0c8d8}
+  .btn-ghost:disabled{opacity:.3;cursor:not-allowed}
+
+  .file-wrap{position:relative;margin-bottom:10px}
+  #file-input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .file-display{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1.5px dashed var(--border);border-radius:8px;font-size:12px;color:var(--muted);cursor:pointer;transition:border-color .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-display:hover{border-color:var(--blue)}
+  .file-display.ready{border-style:solid;border-color:var(--stand);color:var(--ink)}
+
+  .divider{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:11px;color:var(--muted)}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+  .status-row{display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:all .3s}
+  .dot.ready{background:var(--stand);box-shadow:0 0 6px var(--stand)}
+  .dot.live{background:var(--blue);box-shadow:0 0 6px var(--blue);animation:blink 1s ease-in-out infinite}
+  .dot.busy{background:var(--sit);box-shadow:0 0 6px var(--sit);animation:blink .7s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+  .verdict-card{display:none;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);animation:up .3s ease}
+  @keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .verdict-top{padding:22px 18px 18px;text-align:center}
+  .verdict-top.stand{background:#f0fdf5;border-bottom:1px solid #bbf7d0}
+  .verdict-top.sit{background:#fffbeb;border-bottom:1px solid #fde68a}
+  .v-icon{font-size:32px;margin-bottom:6px}
+  .v-label{font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+  .v-text{font-family:'DM Serif Display',serif;font-size:30px;font-weight:400}
+  .v-text.stand{color:var(--stand)}
+  .v-text.sit{color:var(--sit)}
+  .v-conf{font-size:12px;color:var(--muted);margin-top:3px}
+  .verdict-bars{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .bar-row{display:flex;flex-direction:column;gap:4px}
+  .bar-meta{display:flex;justify-content:space-between;font-size:12px;font-weight:500}
+  .bar-track{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.34,1.56,.64,1)}
+  .bar-fill.s{background:linear-gradient(90deg,#4ade80,var(--stand))}
+  .bar-fill.t{background:linear-gradient(90deg,#fbbf24,var(--sit))}
+
+  .canvas-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .canvas-wrap{position:relative;background:#111418;aspect-ratio:4/3}
+  #main-canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+  #webcam-el{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:none}
+  #overlay-canvas{position:absolute;inset:0;width:100%;height:100%;display:none}
+  .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;transition:opacity .3s}
+  .placeholder.hidden{opacity:0}
+  .placeholder-icon{font-size:44px;opacity:.18}
+  .placeholder-txt{font-size:13px;color:#6b7280}
+
+  #loader{position:absolute;inset:0;background:rgba(10,12,18,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20;transition:opacity .5s}
+  #loader.hidden{opacity:0;pointer-events:none}
+  .loader-txt{font-size:12px;color:rgba(255,255,255,.5);letter-spacing:1.5px}
+  .loader-track{width:180px;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+  .loader-bar{height:100%;background:var(--blue);border-radius:2px;animation:loadp 3.5s ease-in-out forwards}
+  @keyframes loadp{0%{width:0%}60%{width:70%}90%{width:92%}100%{width:100%}}
+
+  .canvas-badge{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);padding:6px 18px;border-radius:20px;font-size:13px;font-weight:600;display:none;z-index:10;backdrop-filter:blur(6px);white-space:nowrap}
+  .canvas-badge.stand{background:rgba(22,163,74,.2);border:1px solid var(--stand);color:var(--stand)}
+  .canvas-badge.sit{background:rgba(217,119,6,.2);border:1px solid var(--sit);color:var(--sit)}
+
+  .canvas-footer{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+  input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--border);border-radius:2px;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--blue);border-radius:50%;cursor:pointer}
+  .thresh-val{font-weight:600;color:var(--blue);min-width:32px}
+
+  @media(max-width:660px){.layout{grid-template-columns:1fr}h1{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="prac-tag">MLTL — Practical 06</div>
+    <h1>Pose Detection (Human Stand / Sit)</h1>
+    <div class="byline">Gayatri Vidhate &nbsp;·&nbsp; CM23039 &nbsp;·&nbsp; PoseNet via TensorFlow.js</div>
+  </header>
+
+  <div class="layout">
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card">
+        <div class="card-title">Input</div>
+        <div class="card-body">
+          <div class="file-wrap">
+            <input type="file" id="file-input" accept="image/*">
+            <div class="file-display" id="file-display">📂 &nbsp;Choose image</div>
+          </div>
+          <button class="btn btn-primary" id="btn-analyze" onclick="analyzeImage()" disabled>Analyze Image</button>
+          <div class="divider">or</div>
+          <button class="btn btn-outline" id="btn-webcam" onclick="toggleWebcam()">📷 &nbsp;Use Webcam</button>
+          <button class="btn btn-ghost"   id="btn-stop"   onclick="stopWebcam()" disabled>⏹ &nbsp;Stop</button>
+          <div class="status-row">
+            <div class="dot" id="dot"></div>
+            <span id="status-txt">Loading PoseNet model…</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict-card" id="verdict-card">
+        <div class="verdict-top" id="verdict-top">
+          <div class="v-icon" id="v-icon">—</div>
+          <div class="v-label">Prediction</div>
+          <div class="v-text" id="v-text">—</div>
+          <div class="v-conf" id="v-conf"></div>
+        </div>
+        <div class="verdict-bars">
+          <div class="bar-row">
+            <div class="bar-meta">
+              <span style="color:var(--stand)">🧍 Standing</span>
+              <span id="stand-pct" style="color:var(--stand)">0%</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill s" id="stand-bar" style="width:0%"></div></div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-meta">
+              <span style="color:var(--sit)">🪑 Sitting</span>
+              <span id="sit-pct" style="color:var(--sit)">0%</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill t" id="sit-bar" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="canvas-card">
+      <div class="canvas-wrap">
+        <div class="placeholder" id="placeholder">
+          <div class="placeholder-icon">🕺</div>
+          <div class="placeholder-txt">Upload an image or start webcam</div>
+        </div>
+        <div id="loader">
+          <div class="loader-txt">LOADING POSENET</div>
+          <div class="loader-track"><div class="loader-bar"></div></div>
+        </div>
+        <canvas id="main-canvas"></canvas>
+        <video  id="webcam-el"></video>
+        <canvas id="overlay-canvas"></canvas>
+        <div class="canvas-badge" id="canvas-badge"></div>
+      </div>
+      <div class="canvas-footer">
+        <span>Min keypoint confidence</span>
+        <input type="range" id="kp-thresh" min="10" max="90" value="40"
+          oninput="document.getElementById('thresh-val').textContent=this.value+'%';keypointThresh=this.value/100">
+        <span class="thresh-val" id="thresh-val">40%</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let net=null, keypointThresh=0.4;
+  let webcamStream=null, webcamRunning=false;
+  let animFrame=null, lastDetect=0;
+
+  const SKELETON=[
+    ['leftShoulder','rightShoulder'],
+    ['leftShoulder','leftElbow'],['leftElbow','leftWrist'],
+    ['rightShoulder','rightElbow'],['rightElbow','rightWrist'],
+    ['leftShoulder','leftHip'],['rightShoulder','rightHip'],
+    ['leftHip','rightHip'],
+    ['leftHip','leftKnee'],['leftKnee','leftAnkle'],
+    ['rightHip','rightKnee'],['rightKnee','rightAnkle']
+  ];
+
+  window.addEventListener('load', async()=>{
+    setStatus('busy','Loading PoseNet model…');
+    try{
+      net=await posenet.load({architecture:'MobileNetV1',outputStride:16,inputResolution:{width:513,height:513},multiplier:0.75});
+      document.getElementById('loader').classList.add('hidden');
+      setStatus('ready','Model ready');
+    }catch(e){setStatus('','Model load failed');}
+  });
+
+  document.getElementById('file-input').addEventListener('change',function(){
+    const d=document.getElementById('file-display');
+    if(this.files[0]){d.textContent='✓  '+this.files[0].name;d.classList.add('ready');document.getElementById('btn-analyze').disabled=!net;}
+  });
+
+  function setStatus(state,text){
+    const d=document.getElementById('dot');
+    d.className='dot'+(state?' '+state:'');
+    document.getElementById('status-txt').textContent=text;
+  }
+
+  async function analyzeImage(){
+    if(!net) return;
+    const file=document.getElementById('file-input').files[0];
+    if(!file) return;
+    stopWebcam(); setStatus('busy','Analyzing…');
+    const img=new Image();
+    img.onload=async()=>{
+      const canvas=document.getElementById('main-canvas');
+      const wrap=document.querySelector('.canvas-wrap');
+      canvas.style.display='block';
+      const mw=wrap.clientWidth, mh=wrap.clientHeight;
+      const r=Math.min(mw/img.width,mh/img.height);
+      canvas.width=img.width*r; canvas.height=img.height*r;
+      canvas.style.left=((mw-canvas.width)/2)+'px';
+      canvas.style.top=((mh-canvas.height)/2)+'px';
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      document.getElementById('placeholder').classList.add('hidden');
+      try{
+        const pose=await net.estimateSinglePose(canvas,{flipHorizontal:false});
+        drawSkeleton(ctx,pose,canvas.width/img.width,canvas.height/img.height);
+        showResult(pose); setStatus('ready','Done');
+      }catch(e){setStatus('','Detection failed');}
+    };
+    img.src=URL.createObjectURL(file);
+  }
+
+  async function toggleWebcam(){
+    if(!net) return;
+    if(webcamRunning){stopWebcam();return;}
+    setStatus('busy','Starting webcam…');
+    try{
+      webcamStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480}});
+      const vid=document.getElementById('webcam-el');
+      vid.srcObject=webcamStream; await vid.play();
+      document.getElementById('webcam-el').style.display='block';
+      document.getElementById('main-canvas').style.display='none';
+      document.getElementById('overlay-canvas').style.display='block';
+      document.getElementById('placeholder').classList.add('hidden');
+      document.getElementById('btn-stop').disabled=false;
+      document.getElementById('btn-webcam').textContent='⏸  Pause';
+      webcamRunning=true; setStatus('live','LIVE'); loop();
+    }catch(e){setStatus('','Camera access denied');}
+  }
+
+  function stopWebcam(){
+    webcamRunning=false;
+    if(animFrame) cancelAnimationFrame(animFrame);
+    if(webcamStream) webcamStream.getTracks().forEach(t=>t.stop());
+    document.getElementById('webcam-el').style.display='none';
+    document.getElementById('overlay-canvas').style.display='none';
+    document.getElementById('canvas-badge').style.display='none';
+    document.getElementById('btn-stop').disabled=true;
+    document.getElementById('btn-webcam').textContent='📷  Use Webcam';
+    setStatus('ready','Model ready');
+  }
+
+  async function loop(){
+    if(!webcamRunning) return;
+    const now=performance.now();
+    if(now-lastDetect>130){
+      lastDetect=now;
+      const vid=document.getElementById('webcam-el');
+      const oc=document.getElementById('overlay-canvas');
+      oc.width=vid.videoWidth||640; oc.height=vid.videoHeight||480;
+      if(vid.readyState===4){
+        try{
+          const pose=await net.estimateSinglePose(vid,{flipHorizontal:true});
+          const ctx=oc.getContext('2d');
+          ctx.clearRect(0,0,oc.width,oc.height);
+          drawSkeleton(ctx,pose,1,1);
+          showResult(pose);
+        }catch(e){}
+      }
+    }
+    animFrame=requestAnimationFrame(loop);
+  }
+
+  function drawSkeleton(ctx,pose,sx,sy){
+    const map={};
+    pose.keypoints.forEach(k=>{map[k.part]=k;});
+    ctx.lineWidth=2.5; ctx.lineCap='round';
+    SKELETON.forEach(([a,b])=>{
+      const kA=map[a],kB=map[b];
+      if(!kA||!kB||kA.score<keypointThresh||kB.score<keypointThresh) return;
+      ctx.strokeStyle='#00c8ff'; ctx.shadowColor='#00c8ff'; ctx.shadowBlur=6;
+      ctx.beginPath();
+      ctx.moveTo(kA.position.x*sx,kA.position.y*sy);
+      ctx.lineTo(kB.position.x*sx,kB.position.y*sy);
+      ctx.stroke();
+    });
+    ctx.shadowBlur=0;
+    pose.keypoints.forEach(k=>{
+      if(k.score<keypointThresh) return;
+      const x=k.position.x*sx, y=k.position.y*sy;
+      ctx.beginPath(); ctx.arc(x,y,5,0,2*Math.PI);
+      ctx.fillStyle='#00c8ff'; ctx.shadowColor='#00c8ff'; ctx.shadowBlur=10;
+      ctx.fill(); ctx.shadowBlur=0;
+    });
+  }
+
+  function showResult(pose){
+    const map={};
+    pose.keypoints.forEach(k=>{map[k.part]=k;});
+    const hip=avg(map['leftHip'],map['rightHip']);
+    const knee=avg(map['leftKnee'],map['rightKnee']);
+    const ankle=avg(map['leftAnkle'],map['rightAnkle']);
+    const should=avg(map['leftShoulder'],map['rightShoulder']);
+
+    let standC=0.5,sitC=0.5;
+    if(hip&&knee&&ankle&&should){
+      const torso=Math.abs(should.y-hip.y)+1;
+      const legH=Math.abs(hip.y-ankle.y)+1;
+      const kneeH=Math.abs(hip.y-knee.y)+1;
+      const legR=legH/torso, kneeR=kneeH/legH;
+      if(legR>1.2&&kneeR<0.55){
+        standC=Math.min(0.99,0.5+(legR-1.2)*0.4+(0.55-kneeR)*0.3);
+        sitC=1-standC;
+      }else{
+        sitC=Math.min(0.99,0.5+Math.max(0,1.2-legR)*0.4+Math.max(0,kneeR-0.55)*0.4);
+        standC=1-sitC;
+      }
+    }
+
+    const isStand=standC>=sitC;
+    const cls=isStand?'stand':'sit';
+    const conf=isStand?standC:sitC;
+
+    document.getElementById('verdict-card').style.display='block';
+    document.getElementById('verdict-top').className='verdict-top '+cls;
+    document.getElementById('v-icon').textContent=isStand?'🧍':'🪑';
+    const vt=document.getElementById('v-text');
+    vt.textContent=isStand?'Standing':'Sitting'; vt.className='v-text '+cls;
+    document.getElementById('v-conf').textContent='Confidence: '+(conf*100).toFixed(2)+'%';
+
+    const ps=(standC*100).toFixed(1), pt=(sitC*100).toFixed(1);
+    document.getElementById('stand-pct').textContent=ps+'%';
+    document.getElementById('sit-pct').textContent=pt+'%';
+    setTimeout(()=>{
+      document.getElementById('stand-bar').style.width=ps+'%';
+      document.getElementById('sit-bar').style.width=pt+'%';
+    },40);
+
+    const badge=document.getElementById('canvas-badge');
+    badge.textContent=(isStand?'🧍 Standing':'🪑 Sitting')+' — '+(conf*100).toFixed(1)+'%';
+    badge.className='canvas-badge '+cls;
+    badge.style.display='block';
+  }
+
+  function avg(a,b){
+    if(!a||!b||(a.score<0.2&&b.score<0.2)) return null;
+    return{x:(a.position.x+b.position.x)/2,y:(a.position.y+b.position.y)/2};
+  }
+</script>
+</body>
+</html>

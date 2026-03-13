@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser Model Storage</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:     #f4f7fb;
+    --white:  #ffffff;
+    --ink:    #18202e;
+    --muted:  #7b8aaa;
+    --border: #e2e7f2;
+    --blue:   #3b72f0;
+    --green:  #16a34a;
+    --amber:  #d97706;
+    --shadow: 0 2px 18px rgba(0,0,0,0.07);
+    --r:      12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 36px 20px 60px;
+  }
+
+  .page { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+  /* Header */
+  header { text-align: center; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+  .prac-tag { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+  h1 { font-family: 'DM Serif Display', serif; font-size: 32px; font-weight: 400; margin-bottom: 5px; }
+  .byline { font-size: 13px; color: var(--muted); }
+
+  /* Card */
+  .card { background: var(--white); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+
+  .card-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-title { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--blue); color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-body { padding: 18px; }
+
+  /* Dataset table */
+  .dataset-note { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .dataset-note strong { color: var(--ink); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    padding: 7px 12px; background: var(--bg);
+    color: var(--muted); font-weight: 600; font-size: 11px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    text-align: left; border-bottom: 1px solid var(--border);
+  }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #f8f9fd; }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn-blue  { background: var(--blue);  color: #fff; }
+  .btn-blue:hover  { background: #2b5ed4; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,114,240,.3); }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: #12893f; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,.3); }
+  .btn-amber { background: var(--amber); color: #fff; }
+  .btn-amber:hover { background: #b86107; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(217,119,6,.3); }
+  .btn-outline { background: transparent; color: var(--blue); border: 1.5px solid rgba(59,114,240,.3); }
+  .btn-outline:hover { background: rgba(59,114,240,.05); border-color: var(--blue); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+  /* Training progress */
+  .train-progress { display: none; margin-top: 14px; }
+  .train-progress.show { display: block; }
+  .prog-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .prog-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .prog-fill  { height: 100%; background: linear-gradient(90deg, #93c5fd, var(--blue)); border-radius: 3px; width: 0%; transition: width 0.1s; }
+  .loss-line  { font-size: 12px; color: var(--blue); font-weight: 600; margin-top: 6px; min-height: 18px; }
+
+  /* Status pills */
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    transition: all 0.3s;
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: all 0.3s; }
+  .pill.on { background: #f0fdf4; border-color: rgba(22,163,74,.3); color: var(--green); }
+  .pill.on .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* Inputs */
+  .inputs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .inp-group { display: flex; flex-direction: column; gap: 4px; }
+  .inp-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .inp-field {
+    padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink);
+    background: var(--bg); outline: none; transition: border-color 0.2s;
+  }
+  .inp-field:focus { border-color: var(--blue); background: #fff; }
+
+  /* Prediction result */
+  .pred-result {
+    display: none;
+    margin-top: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    animation: up 0.3s ease;
+  }
+  @keyframes up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  .pred-cols { display: flex; }
+  .pred-col {
+    flex: 1; padding: 16px 18px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .pred-col:last-child { border-right: none; }
+  .pred-col.original { background: #eff6ff; }
+  .pred-col.reloaded { background: #f0fdf4; }
+  .pred-col.diff     { background: #fffbeb; }
+
+  .pred-col-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 5px;
+  }
+  .pred-col-val {
+    font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400;
+  }
+  .pred-col.original .pred-col-val { color: var(--blue); }
+  .pred-col.reloaded .pred-col-val { color: var(--green); }
+  .pred-col.diff     .pred-col-val { color: var(--amber); }
+  .pred-unit { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* Console log */
+  .log-box {
+    background: #0f1117; border-radius: 8px;
+    padding: 12px 14px; max-height: 148px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .log-box::-webkit-scrollbar { width: 3px; }
+  .log-box::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 2px; }
+  .log-entry { display: flex; gap: 10px; font-size: 11px; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .log-t { color: #3a4460; min-width: 54px; font-family: monospace; }
+  .log-m { color: #8899bb; font-family: monospace; }
+  .log-m.ok   { color: #4ade80; }
+  .log-m.warn { color: #fbbf24; }
+  .log-m.info { color: #60a5fa; }
+
+  @media (max-width: 520px) {
+    .inputs-grid { grid-template-columns: 1fr; }
+    .pred-cols   { flex-direction: column; }
+    .pred-col    { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header>
+    <div class="prac-tag">MLTL — Practical 07</div>
+    <h1>Deploying a Model in the Browser</h1>
+    <div class="byline">Gayatri Vidhate &nbsp;·&nbsp; CM23039 &nbsp;·&nbsp; Train · Save to LocalStorage · Reload · Predict · Export</div>
+  </header>
+
+  <!-- Step 1: Dataset -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Training Dataset — House Prices</span>
+      <span class="step-num">1</span>
+    </div>
+    <div class="card-body">
+      <p class="dataset-note">
+        3 input features → <strong>Size (sq ft)</strong>, <strong>Bedrooms</strong>, <strong>Age (years)</strong> &nbsp;·&nbsp; Output → <strong>Price (₹ Lakhs)</strong>
+      </p>
+      <table>
+        <thead>
+          <tr><th>Size (sq ft)</th><th>Bedrooms</th><th>Age (yrs)</th><th>Price (₹ L)</th></tr>
+        </thead>
+        <tbody id="dataset-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Step 2: Train -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Train Model</span>
+      <span class="step-num">2</span>
+    </div>
+    <div class="card-body">
+      <div class="btn-row">
+        <button class="btn btn-blue" id="btn-train" onclick="trainModel()">⚡ Train Model</button>
+      </div>
+      <div class="train-progress" id="train-progress">
+        <div class="prog-meta">
+          <span id="epoch-lbl">Epoch 0 / 300</span>
+          <span id="epoch-pct">0%</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+        <div class="loss-line" id="loss-line"></div>
+      </div>
+      <div class="pills">
+        <div class="pill" id="pill-trained"><div class="dot"></div> Trained</div>
+        <div class="pill" id="pill-saved">  <div class="dot"></div> Saved to LocalStorage</div>
+        <div class="pill" id="pill-loaded"> <div class="dot"></div> Reloaded</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Save / Reload / Export -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Save · Reload · Export</span>
+      <span class="step-num">3</span>
+    </div>
+    <div class="card-body">
+      <div class="btn-row">
+        <button class="btn btn-green"   id="btn-save"   onclick="saveModel()"   disabled>💾 Save to LocalStorage</button>
+        <button class="btn btn-amber"   id="btn-reload" onclick="reloadModel()" disabled>🔄 Reload from LocalStorage</button>
+        <button class="btn btn-outline" id="btn-export" onclick="exportModel()" disabled>⬇ Export Model</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Predict -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Predict House Price</span>
+      <span class="step-num">4</span>
+    </div>
+    <div class="card-body">
+      <div class="inputs-grid">
+        <div class="inp-group">
+          <label class="inp-label">Size (sq ft)</label>
+          <input class="inp-field" id="inp-size"  type="number" placeholder="e.g. 1500" value="1500">
+        </div>
+        <div class="inp-group">
+          <label class="inp-label">Bedrooms</label>
+          <input class="inp-field" id="inp-beds"  type="number" placeholder="e.g. 3" value="3">
+        </div>
+        <div class="inp-group">
+          <label class="inp-label">Age (years)</label>
+          <input class="inp-field" id="inp-age"   type="number" placeholder="e.g. 5" value="5">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-blue"   id="btn-pred-orig"   onclick="predictOriginal()" disabled>🔵 Predict (Trained)</button>
+        <button class="btn btn-green"  id="btn-pred-reload" onclick="predictReloaded()" disabled>🟢 Predict (Reloaded)</button>
+        <button class="btn btn-outline"                      onclick="predictBoth()"    id="btn-pred-both" disabled>⚖ Compare Both</button>
+      </div>
+
+      <div class="pred-result" id="pred-result">
+        <div class="pred-cols">
+          <div class="pred-col original">
+            <div class="pred-col-label">Trained Model</div>
+            <div class="pred-col-val"  id="pred-orig-val">—</div>
+            <div class="pred-unit">₹ Lakhs</div>
+          </div>
+          <div class="pred-col reloaded">
+            <div class="pred-col-label">Reloaded Model</div>
+            <div class="pred-col-val"  id="pred-load-val">—</div>
+            <div class="pred-unit">₹ Lakhs</div>
+          </div>
+          <div class="pred-col diff">
+            <div class="pred-col-label">Difference</div>
+            <div class="pred-col-val"  id="pred-diff-val">—</div>
+            <div class="pred-unit">₹ Lakhs</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Activity Log</span>
+      <button onclick="clearLog()" style="font-size:11px;font-family:'DM Sans',sans-serif;background:none;border:1px solid var(--border);padding:3px 10px;border-radius:4px;cursor:pointer;color:var(--muted);">Clear</button>
+    </div>
+    <div class="card-body" style="padding:12px;">
+      <div class="log-box" id="log-box">
+        <div class="log-entry"><span class="log-t">--:--:--</span><span class="log-m">Ready. Click "Train Model" to begin.</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Dataset ──────────────────────────────────────────────
+const DATASET = [
+  [600,  1, 20, 25],
+  [800,  2, 15, 35],
+  [1000, 2, 10, 45],
+  [1100, 3, 12, 52],
+  [1300, 3, 8,  60],
+  [1500, 3, 5,  72],
+  [1600, 4, 7,  78],
+  [1800, 4, 3,  90],
+  [2000, 4, 2,  98],
+  [2200, 5, 1,  115],
+  [2500, 5, 4,  125],
+  [3000, 6, 2,  148],
+];
+
+// Normalization mins/maxs
+const MINS = [600, 1, 1];
+const MAXS = [3000, 6, 20];
+const PRICE_MIN = 25, PRICE_MAX = 148;
+
+function normalize(val, min, max) { return (val - min) / (max - min); }
+function denormalize(val, min, max) { return val * (max - min) + min; }
+
+// Render table
+const tbody = document.getElementById('dataset-body');
+DATASET.forEach(([s, b, a, p]) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${s}</td><td>${b}</td><td>${a}</td><td><strong>₹ ${p}L</strong></td>`;
+  tbody.appendChild(tr);
+});
+
+// ── State ─────────────────────────────────────────────────
+let trainedModel = null;
+let loadedModel  = null;
+
+// ── Log ───────────────────────────────────────────────────
+function addLog(msg, type = '') {
+  const box = document.getElementById('log-box');
+  const now = new Date().toTimeString().slice(0, 8);
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-t">${now}</span><span class="log-m ${type}">${msg}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() {
+  document.getElementById('log-box').innerHTML = '';
+}
+
+// ── Pill helper ───────────────────────────────────────────
+function activatePill(id) {
+  document.getElementById(id).classList.add('on');
+}
+
+// ── Train ─────────────────────────────────────────────────
+async function trainModel() {
+  document.getElementById('btn-train').disabled = true;
+  addLog('Preparing training data…', 'info');
+
+  // Normalize inputs
+  const xsRaw = DATASET.map(([s, b, a]) => [
+    normalize(s, MINS[0], MAXS[0]),
+    normalize(b, MINS[1], MAXS[1]),
+    normalize(a, MINS[2], MAXS[2])
+  ]);
+  const ysRaw = DATASET.map(([,,,p]) => [normalize(p, PRICE_MIN, PRICE_MAX)]);
+
+  const xs = tf.tensor2d(xsRaw);
+  const ys = tf.tensor2d(ysRaw);
+
+  // Build model
+  trainedModel = tf.sequential();
+  trainedModel.add(tf.layers.dense({ units: 16, activation: 'relu', inputShape: [3] }));
+  trainedModel.add(tf.layers.dense({ units: 8,  activation: 'relu' }));
+  trainedModel.add(tf.layers.dense({ units: 1 }));
+  trainedModel.compile({ optimizer: tf.train.adam(0.01), loss: 'meanSquaredError' });
+
+  const EPOCHS = 300;
+  const prog = document.getElementById('train-progress');
+  prog.classList.add('show');
+  addLog('Training started — 300 epochs…', 'info');
+
+  await trainedModel.fit(xs, ys, {
+    epochs: EPOCHS,
+    batchSize: 4,
+    callbacks: {
+      onEpochEnd(epoch, logs) {
+        const pct = Math.round(((epoch + 1) / EPOCHS) * 100);
+        document.getElementById('epoch-lbl').textContent = `Epoch ${epoch + 1} / ${EPOCHS}`;
+        document.getElementById('epoch-pct').textContent = pct + '%';
+        document.getElementById('prog-fill').style.width = pct + '%';
+        document.getElementById('loss-line').textContent = `Loss: ${logs.loss.toFixed(6)}`;
+      }
+    }
+  });
+
+  xs.dispose(); ys.dispose();
+  addLog('Training complete ✔', 'ok');
+  activatePill('pill-trained');
+
+  document.getElementById('btn-save').disabled   = false;
+  document.getElementById('btn-export').disabled = false;
+  document.getElementById('btn-pred-orig').disabled  = false;
+  document.getElementById('btn-pred-both').disabled  = true;
+  document.getElementById('btn-train').disabled  = false;
+}
+
+// ── Save ──────────────────────────────────────────────────
+async function saveModel() {
+  if (!trainedModel) { addLog('Train the model first.', 'warn'); return; }
+  await trainedModel.save('localstorage://house-price-model');
+  addLog('Model saved to LocalStorage ✔', 'ok');
+  activatePill('pill-saved');
+  document.getElementById('btn-reload').disabled = false;
+}
+
+// ── Reload ────────────────────────────────────────────────
+async function reloadModel() {
+  try {
+    loadedModel = await tf.loadLayersModel('localstorage://house-price-model');
+    addLog('Model reloaded from LocalStorage ✔', 'ok');
+    activatePill('pill-loaded');
+    document.getElementById('btn-pred-reload').disabled = false;
+    document.getElementById('btn-pred-both').disabled   = false;
+  } catch(e) {
+    addLog('Reload failed — save the model first.', 'warn');
+  }
+}
+
+// ── Export ────────────────────────────────────────────────
+async function exportModel() {
+  if (!trainedModel) { addLog('Train the model first.', 'warn'); return; }
+  await trainedModel.save('downloads://house-price-model');
+  addLog('Model exported ✔  (house-price-model.json + weights.bin)', 'ok');
+}
+
+// ── Get input values ──────────────────────────────────────
+function getInputs() {
+  const size = parseFloat(document.getElementById('inp-size').value);
+  const beds = parseFloat(document.getElementById('inp-beds').value);
+  const age  = parseFloat(document.getElementById('inp-age').value);
+  if (isNaN(size) || isNaN(beds) || isNaN(age)) {
+    addLog('Please fill in all input fields.', 'warn'); return null;
+  }
+  return [size, beds, age];
+}
+
+function runPrediction(mdl, inputs) {
+  const norm = [
+    normalize(inputs[0], MINS[0], MAXS[0]),
+    normalize(inputs[1], MINS[1], MAXS[1]),
+    normalize(inputs[2], MINS[2], MAXS[2])
+  ];
+  const tensor = tf.tensor2d([norm]);
+  const raw    = mdl.predict(tensor).dataSync()[0];
+  tensor.dispose();
+  return denormalize(raw, PRICE_MIN, PRICE_MAX).toFixed(2);
+}
+
+function showResult(orig, loaded) {
+  const card = document.getElementById('pred-result');
+  card.style.display = 'block';
+
+  document.getElementById('pred-orig-val').textContent = orig !== null ? '₹ ' + orig : '—';
+  document.getElementById('pred-load-val').textContent = loaded !== null ? '₹ ' + loaded : '—';
+
+  if (orig !== null && loaded !== null) {
+    const diff = Math.abs(parseFloat(orig) - parseFloat(loaded)).toFixed(2);
+    document.getElementById('pred-diff-val').textContent = diff === '0.00' ? '0.00 ✔' : diff;
+  } else {
+    document.getElementById('pred-diff-val').textContent = '—';
+  }
+}
+
+async function predictOriginal() {
+  const inp = getInputs(); if (!inp) return;
+  const val = runPrediction(trainedModel, inp);
+  addLog(`Trained model → Size:${inp[0]} sqft, ${inp[1]} beds, ${inp[2]}yrs = ₹ ${val}L`, 'ok');
+  showResult(val, null);
+}
+
+async function predictReloaded() {
+  const inp = getInputs(); if (!inp) return;
+  const val = runPrediction(loadedModel, inp);
+  addLog(`Reloaded model → Size:${inp[0]} sqft, ${inp[1]} beds, ${inp[2]}yrs = ₹ ${val}L`, 'ok');
+  showResult(null, val);
+}
+
+async function predictBoth() {
+  const inp = getInputs(); if (!inp) return;
+  const v1 = runPrediction(trainedModel, inp);
+  const v2 = runPrediction(loadedModel, inp);
+  addLog(`Both models → Trained: ₹${v1}L  |  Reloaded: ₹${v2}L`, 'ok');
+  showResult(v1, v2);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transfer Learning — Image Classifier</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:     #f4f7fb;
+    --white:  #ffffff;
+    --ink:    #18202e;
+    --muted:  #7b8aaa;
+    --border: #e2e7f2;
+    --blue:   #3b72f0;
+    --green:  #16a34a;
+    --amber:  #d97706;
+    --red:    #e03e3e;
+    --shadow: 0 2px 18px rgba(0,0,0,0.07);
+    --r:      12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 32px 20px 60px;
+  }
+
+  .page { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  /* Header */
+  header { text-align: center; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+  .prac-tag { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+  h1 { font-family: 'DM Serif Display', serif; font-size: 32px; font-weight: 400; margin-bottom: 5px; }
+  .byline { font-size: 13px; color: var(--muted); }
+
+  /* Card */
+  .card { background: var(--white); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .card-title { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .card-body { padding: 18px; }
+  .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* Buttons */
+  .btn { padding: 9px 18px; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-blue   { background: var(--blue);  color: #fff; }
+  .btn-blue:hover   { background: #2b5ed4; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,114,240,.3); }
+  .btn-green  { background: var(--green); color: #fff; }
+  .btn-green:hover  { background: #12893f; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,.3); }
+  .btn-amber  { background: var(--amber); color: #fff; }
+  .btn-amber:hover  { background: #b86107; transform: translateY(-1px); }
+  .btn-outline { background: transparent; color: var(--blue); border: 1.5px solid rgba(59,114,240,.3); }
+  .btn-outline:hover { background: rgba(59,114,240,.05); border-color: var(--blue); }
+  .btn-ghost  { background: transparent; color: var(--muted); border: 1.5px solid var(--border); font-weight: 500; }
+  .btn-ghost:hover  { color: var(--ink); border-color: #c0c8d8; }
+  .btn-danger { background: transparent; color: var(--red); border: 1.5px solid rgba(224,62,62,.25); font-weight: 500; font-size: 12px; padding: 5px 10px; }
+  .btn-danger:hover { background: rgba(224,62,62,.06); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+  /* Status bar */
+  .status-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; background: var(--bg); border-bottom: 1px solid var(--border); font-size: 12px; }
+  .status-row { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: all 0.3s; }
+  .dot.ready { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.busy  { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: blink .7s ease-in-out infinite; }
+  .dot.live  { background: var(--blue);  box-shadow: 0 0 6px var(--blue); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  /* Classes grid */
+  .classes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+
+  .class-card {
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; background: var(--white);
+    transition: box-shadow 0.2s;
+  }
+  .class-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); }
+
+  .class-card-head {
+    padding: 9px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .class-name-input {
+    border: none; background: transparent; font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; color: var(--ink); outline: none;
+    width: 100%; min-width: 0;
+  }
+
+  .class-thumb-strip {
+    display: flex; gap: 4px; padding: 8px; flex-wrap: wrap;
+    min-height: 60px; align-items: center;
+  }
+
+  .thumb-img {
+    width: 44px; height: 44px; object-fit: cover;
+    border-radius: 5px; border: 1px solid var(--border);
+  }
+
+  .thumb-count {
+    font-size: 11px; color: var(--muted); font-weight: 500; padding: 0 4px;
+    align-self: flex-end;
+  }
+
+  .class-footer {
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .upload-label {
+    flex: 1; padding: 7px 10px;
+    background: rgba(59,114,240,.07); border: 1.5px dashed rgba(59,114,240,.25);
+    border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--blue);
+    cursor: pointer; text-align: center; transition: all 0.2s;
+  }
+  .upload-label:hover { background: rgba(59,114,240,.12); border-color: var(--blue); }
+
+  .add-class-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px; border: 2px dashed var(--border); border-radius: 10px;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    cursor: pointer; transition: all 0.2s; background: transparent;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .add-class-btn:hover { border-color: var(--blue); color: var(--blue); background: rgba(59,114,240,.04); }
+
+  /* Training */
+  .train-section { display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+  .train-controls { display: flex; flex-direction: column; gap: 10px; min-width: 200px; }
+  .train-params { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .param-group { display: flex; flex-direction: column; gap: 4px; }
+  .param-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .param-input { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--ink); background: var(--bg); outline: none; }
+  .param-input:focus { border-color: var(--blue); }
+
+  .train-progress-wrap { flex: 1; min-width: 200px; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .prog-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .prog-fill  { height: 100%; background: linear-gradient(90deg,#93c5fd,var(--blue)); border-radius: 3px; width: 0%; transition: width 0.1s; }
+  .prog-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+  .prog-stat { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 8px; text-align: center; }
+  .prog-stat-val { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--ink); }
+  .prog-stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+  /* Accuracy per class table */
+  .acc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .acc-table th { padding: 7px 12px; background: var(--bg); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border-bottom: 1px solid var(--border); }
+  .acc-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .acc-table tr:last-child td { border-bottom: none; }
+  .acc-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+  .acc-badge.perfect { background: #dcfce7; color: var(--green); }
+  .acc-badge.good    { background: #fef3c7; color: var(--amber); }
+  .acc-badge.bad     { background: #fee2e2; color: var(--red); }
+
+  /* Confusion matrix */
+  .matrix-wrap { overflow-x: auto; }
+  .matrix-table { border-collapse: collapse; font-size: 12px; }
+  .matrix-table th { padding: 8px 12px; background: var(--bg); color: var(--muted); font-weight: 600; font-size: 11px; border: 1px solid var(--border); text-align: center; }
+  .matrix-table td { padding: 10px 14px; border: 1px solid var(--border); text-align: center; font-weight: 600; font-size: 14px; min-width: 52px; }
+  .matrix-table td.diag { background: #dbeafe; color: var(--blue); }
+  .matrix-table td.off  { background: #fee2e2; color: var(--red); }
+  .matrix-table td.zero { color: var(--muted); font-weight: 400; }
+
+  /* Prediction */
+  .pred-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .pred-upload-zone {
+    border: 2px dashed var(--border); border-radius: 10px;
+    aspect-ratio: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .pred-upload-zone:hover { border-color: var(--blue); background: rgba(59,114,240,.03); }
+  .pred-upload-zone img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
+  .pred-upload-zone .zone-hint { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .pred-upload-zone .zone-icon { font-size: 36px; opacity: 0.4; }
+  #pred-file { display: none; }
+
+  .pred-bars { display: flex; flex-direction: column; gap: 10px; }
+  .pred-bar-row { display: flex; flex-direction: column; gap: 4px; }
+  .pred-bar-meta { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; }
+  .pred-bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .pred-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.5s cubic-bezier(.34,1.56,.64,1); background: linear-gradient(90deg,#93c5fd,var(--blue)); }
+  .pred-bar-fill.top { background: linear-gradient(90deg,#4ade80,var(--green)); }
+
+  .pred-verdict {
+    margin-top: 12px; padding: 14px 16px;
+    border-radius: 9px; text-align: center;
+    display: none; animation: up .3s ease;
+  }
+  @keyframes up { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .pred-verdict.show { display: block; }
+  .pred-verdict-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .pred-verdict-val { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--green); }
+  .pred-verdict-conf { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Log */
+  .log-box { background: #0f1117; border-radius: 8px; padding: 10px 14px; max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+  .log-box::-webkit-scrollbar { width: 3px; }
+  .log-box::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 2px; }
+  .log-entry { display: flex; gap: 10px; font-size: 11px; animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .log-t { color: #3a4460; min-width: 54px; font-family: monospace; }
+  .log-m { font-family: monospace; color: #8899bb; }
+  .log-m.ok   { color: #4ade80; }
+  .log-m.warn { color: #fbbf24; }
+  .log-m.info { color: #60a5fa; }
+
+  .eval-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+
+  @media (max-width: 640px) {
+    .pred-layout { grid-template-columns: 1fr; }
+    .eval-grid   { grid-template-columns: 1fr; }
+    .train-params { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header>
+    <div class="prac-tag">MLTL — Practical 08</div>
+    <h1>Transfer Learning with Images</h1>
+    <div class="byline">Gayatri Vidhate &nbsp;·&nbsp; CM23039 &nbsp;·&nbsp; MobileNet Feature Extraction · Custom Image Classes</div>
+  </header>
+
+  <!-- Status bar -->
+  <div class="card" style="overflow:hidden;">
+    <div class="status-bar">
+      <div class="status-row">
+        <div class="dot" id="model-dot"></div>
+        <span id="model-status">Loading MobileNet…</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);" id="class-count-lbl">0 classes · 0 images</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Classes -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Step 1 — Add Classes &amp; Upload Images</span>
+      <span class="step-num">1</span>
+    </div>
+    <div class="card-body">
+      <div class="classes-grid" id="classes-grid">
+        <!-- populated by JS -->
+      </div>
+      <button class="add-class-btn" onclick="addClass()" style="margin-top:14px;width:100%;">
+        ＋ Add New Class
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2: Train -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Step 2 — Train Classifier</span>
+      <span class="step-num">2</span>
+    </div>
+    <div class="card-body">
+      <div class="train-section">
+        <div class="train-controls">
+          <div class="train-params">
+            <div class="param-group">
+              <label class="param-label">Epochs</label>
+              <input class="param-input" id="param-epochs" type="number" value="40" min="5" max="200">
+            </div>
+            <div class="param-group">
+              <label class="param-label">Batch Size</label>
+              <input class="param-input" id="param-batch" type="number" value="8" min="2" max="32">
+            </div>
+            <div class="param-group">
+              <label class="param-label">Learning Rate</label>
+              <input class="param-input" id="param-lr" type="number" value="0.001" step="0.0001" min="0.0001">
+            </div>
+            <div class="param-group">
+              <label class="param-label">Hidden Units</label>
+              <input class="param-input" id="param-units" type="number" value="64" min="16" max="256">
+            </div>
+          </div>
+          <button class="btn btn-blue" id="btn-train" onclick="trainModel()" disabled>⚡ Train Model</button>
+        </div>
+        <div class="train-progress-wrap" id="train-progress-wrap" style="display:none;">
+          <div class="prog-label">
+            <span id="epoch-lbl">Epoch 0</span>
+            <span id="epoch-pct">0%</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+          <div class="prog-stats">
+            <div class="prog-stat"><div class="prog-stat-val" id="stat-loss">—</div><div class="prog-stat-lbl">Loss</div></div>
+            <div class="prog-stat"><div class="prog-stat-val" id="stat-acc">—</div><div class="prog-stat-lbl">Accuracy</div></div>
+            <div class="prog-stat"><div class="prog-stat-val" id="stat-epoch">0</div><div class="prog-stat-lbl">Epoch</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Evaluate -->
+  <div class="card" id="eval-card" style="display:none;">
+    <div class="card-head">
+      <span class="card-title">Step 3 — Evaluation</span>
+      <span class="step-num">3</span>
+    </div>
+    <div class="card-body">
+      <div class="eval-grid">
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Accuracy Per Class</div>
+          <table class="acc-table">
+            <thead><tr><th>Class</th><th>Accuracy</th><th>Samples</th></tr></thead>
+            <tbody id="acc-tbody"></tbody>
+          </table>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Confusion Matrix</div>
+          <div class="matrix-wrap">
+            <table class="matrix-table" id="matrix-table"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Predict -->
+  <div class="card" id="pred-card" style="display:none;">
+    <div class="card-head">
+      <span class="card-title">Step 4 — Predict on New Image</span>
+      <span class="step-num">4</span>
+    </div>
+    <div class="card-body">
+      <div class="pred-layout">
+        <div>
+          <label class="pred-upload-zone" id="pred-zone">
+            <input type="file" id="pred-file" accept="image/*">
+            <span class="zone-icon">🖼️</span>
+            <span class="zone-hint">Click to upload image</span>
+          </label>
+          <div class="pred-verdict" id="pred-verdict">
+            <div class="pred-verdict-label">Predicted Class</div>
+            <div class="pred-verdict-val"  id="pred-verdict-val">—</div>
+            <div class="pred-verdict-conf" id="pred-verdict-conf"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Confidence per Class</div>
+          <div class="pred-bars" id="pred-bars"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Activity Log</span>
+      <button onclick="clearLog()" style="font-size:11px;font-family:'DM Sans',sans-serif;background:none;border:1px solid var(--border);padding:3px 10px;border-radius:4px;cursor:pointer;color:var(--muted);">Clear</button>
+    </div>
+    <div class="card-body" style="padding:10px;">
+      <div class="log-box" id="log-box"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Hidden canvas for feature extraction -->
+<canvas id="extract-canvas" style="display:none;" width="224" height="224"></canvas>
+
+<script>
+// ────────────────────────────────────────────────────────
+//  State
+// ────────────────────────────────────────────────────────
+let mobileNet   = null;   // base feature extractor
+let classifier  = null;   // custom head
+let classData   = [];     // [{name, images:[HTMLImageElement]}]
+let features    = [];     // [{label:idx, tensor}]
+let isTrained   = false;
+
+// Default 3 classes
+const DEFAULT_CLASSES = ['Apple 🍎', 'Banana 🍌', 'Orange 🍊'];
+
+// ────────────────────────────────────────────────────────
+//  Init
+// ────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  addLog('Loading MobileNet V2…', 'info');
+  setDot('busy', 'Loading MobileNet…');
+  try {
+    mobileNet = await mobilenet.load({ version: 2, alpha: 1.0 });
+    setDot('ready', 'MobileNet ready');
+    addLog('MobileNet loaded ✔', 'ok');
+    DEFAULT_CLASSES.forEach(n => addClassCard(n));
+  } catch(e) {
+    setDot('', 'Model load failed');
+    addLog('Failed to load MobileNet: ' + e.message, 'warn');
+  }
+});
+
+// ────────────────────────────────────────────────────────
+//  Logging
+// ────────────────────────────────────────────────────────
+function addLog(msg, type='') {
+  const box = document.getElementById('log-box');
+  const t   = new Date().toTimeString().slice(0,8);
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-t">${t}</span><span class="log-m ${type}">${msg}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() { document.getElementById('log-box').innerHTML = ''; }
+
+function setDot(state, text) {
+  document.getElementById('model-dot').className = 'dot' + (state?' '+state:'');
+  document.getElementById('model-status').textContent = text;
+}
+
+function updateCountLabel() {
+  const imgs = classData.reduce((s,c)=>s+c.images.length,0);
+  document.getElementById('class-count-lbl').textContent =
+    `${classData.length} class${classData.length!==1?'es':''} · ${imgs} image${imgs!==1?'s':''}`;
+}
+
+// ────────────────────────────────────────────────────────
+//  Class cards
+// ────────────────────────────────────────────────────────
+function addClass(name) {
+  const n = name || `Class ${classData.length + 1}`;
+  addClassCard(n);
+}
+
+function addClassCard(name) {
+  const idx = classData.length;
+  classData.push({ name, images: [] });
+
+  const grid = document.getElementById('classes-grid');
+  const card = document.createElement('div');
+  card.className = 'class-card';
+  card.id = `class-card-${idx}`;
+  card.innerHTML = `
+    <div class="class-card-head">
+      <input class="class-name-input" value="${name}" onchange="classData[${idx}].name=this.value;updateCountLabel()">
+      <button class="btn-danger" onclick="removeClass(${idx})">✕</button>
+    </div>
+    <div class="class-thumb-strip" id="thumbs-${idx}">
+      <span class="thumb-count" id="count-${idx}">0 images</span>
+    </div>
+    <div class="class-footer">
+      <label class="upload-label">
+        ＋ Add Images
+        <input type="file" accept="image/*" multiple style="display:none"
+          onchange="handleImages(event,${idx})">
+      </label>
+    </div>`;
+  grid.appendChild(card);
+  updateCountLabel();
+  updateTrainButton();
+}
+
+function removeClass(idx) {
+  classData.splice(idx, 1);
+  rebuildClassGrid();
+  updateCountLabel();
+  updateTrainButton();
+}
+
+function rebuildClassGrid() {
+  const grid = document.getElementById('classes-grid');
+  grid.innerHTML = '';
+  const saved = classData.slice();
+  classData = [];
+  saved.forEach(c => addClassCard(c.name));
+  saved.forEach((c,i) => {
+    classData[i].images = c.images;
+    c.images.forEach(img => addThumb(i, img));
+    document.getElementById('count-'+i).textContent = c.images.length + ' image' + (c.images.length!==1?'s':'');
+  });
+}
+
+function handleImages(event, idx) {
+  const files = Array.from(event.target.files);
+  files.forEach(file => {
+    const img = new Image();
+    img.onload = () => {
+      classData[idx].images.push(img);
+      addThumb(idx, img);
+      document.getElementById('count-'+idx).textContent =
+        classData[idx].images.length + ' image' + (classData[idx].images.length!==1?'s':'');
+      updateCountLabel();
+      updateTrainButton();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+  addLog(`Added ${files.length} image(s) to "${classData[idx].name}"`, 'ok');
+}
+
+function addThumb(idx, img) {
+  const strip = document.getElementById('thumbs-'+idx);
+  const thumb = document.createElement('img');
+  thumb.className = 'thumb-img';
+  thumb.src = img.src;
+  // insert before count label
+  const countEl = document.getElementById('count-'+idx);
+  strip.insertBefore(thumb, countEl);
+}
+
+function updateTrainButton() {
+  const valid = classData.length >= 2 && classData.every(c => c.images.length >= 1);
+  document.getElementById('btn-train').disabled = !valid || !mobileNet;
+}
+
+// ────────────────────────────────────────────────────────
+//  Feature extraction helper
+// ────────────────────────────────────────────────────────
+function extractFeature(img) {
+  const canvas = document.getElementById('extract-canvas');
+  const ctx    = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, 224, 224);
+  return tf.tidy(() => {
+    const tensor = tf.browser.fromPixels(canvas)
+      .toFloat().div(127.5).sub(1).expandDims(0);
+    // Use MobileNet's infer with embedding=true
+    return mobileNet.infer(tensor, true); // shape [1, 1280]
+  });
+}
+
+// ────────────────────────────────────────────────────────
+//  Train
+// ────────────────────────────────────────────────────────
+async function trainModel() {
+  document.getElementById('btn-train').disabled = true;
+  isTrained = false;
+  document.getElementById('train-progress-wrap').style.display = 'block';
+  setDot('busy', 'Extracting features…');
+  addLog('Extracting MobileNet features…', 'info');
+
+  // Dispose old features
+  features.forEach(f => f.tensor.dispose());
+  features = [];
+
+  // Extract features for all images
+  for (let ci = 0; ci < classData.length; ci++) {
+    for (const img of classData[ci].images) {
+      const feat = extractFeature(img);
+      features.push({ label: ci, tensor: feat });
+    }
+  }
+  addLog(`Extracted ${features.length} feature vectors`, 'ok');
+
+  // Build xs, ys tensors
+  const xs = tf.concat(features.map(f => f.tensor), 0); // [N, 1280]
+  const ys = tf.oneHot(
+    tf.tensor1d(features.map(f=>f.label), 'int32'),
+    classData.length
+  );
+
+  // Build classifier head
+  if (classifier) classifier.dispose();
+  const units  = parseInt(document.getElementById('param-units').value) || 64;
+  classifier = tf.sequential();
+  classifier.add(tf.layers.dense({ units, activation:'relu', inputShape:[1280] }));
+  classifier.add(tf.layers.dropout({ rate: 0.3 }));
+  classifier.add(tf.layers.dense({ units: classData.length, activation:'softmax' }));
+  classifier.compile({
+    optimizer: tf.train.adam(parseFloat(document.getElementById('param-lr').value)||0.001),
+    loss: 'categoricalCrossentropy',
+    metrics: ['accuracy']
+  });
+
+  const EPOCHS = parseInt(document.getElementById('param-epochs').value) || 40;
+  const BATCH  = parseInt(document.getElementById('param-batch').value)  || 8;
+
+  setDot('busy', 'Training…');
+  addLog(`Training — ${EPOCHS} epochs, batch ${BATCH}, ${classData.length} classes`, 'info');
+
+  await classifier.fit(xs, ys, {
+    epochs: EPOCHS,
+    batchSize: BATCH,
+    shuffle: true,
+    callbacks: {
+      onEpochEnd(epoch, logs) {
+        const pct = Math.round(((epoch+1)/EPOCHS)*100);
+        document.getElementById('epoch-lbl').textContent = `Epoch ${epoch+1} / ${EPOCHS}`;
+        document.getElementById('epoch-pct').textContent = pct + '%';
+        document.getElementById('prog-fill').style.width = pct + '%';
+        document.getElementById('stat-loss').textContent = logs.loss.toFixed(4);
+        document.getElementById('stat-acc').textContent  = (logs.acc*100).toFixed(0)+'%';
+        document.getElementById('stat-epoch').textContent = epoch+1;
+      }
+    }
+  });
+
+  xs.dispose(); ys.dispose();
+  isTrained = true;
+  setDot('ready', 'Model trained ✔');
+  addLog('Training complete ✔', 'ok');
+  document.getElementById('btn-train').disabled = false;
+
+  // Evaluate
+  await evaluateModel();
+
+  document.getElementById('pred-card').style.display  = 'block';
+  document.getElementById('eval-card').style.display  = 'block';
+  setupPrediction();
+}
+
+// ────────────────────────────────────────────────────────
+//  Evaluate
+// ────────────────────────────────────────────────────────
+async function evaluateModel() {
+  addLog('Running evaluation…', 'info');
+
+  const numClasses = classData.length;
+  // confusion[actual][predicted]
+  const confusion  = Array.from({length:numClasses},()=>Array(numClasses).fill(0));
+  const perClass   = classData.map(()=>({correct:0,total:0}));
+
+  for (let ci = 0; ci < classData.length; ci++) {
+    for (const img of classData[ci].images) {
+      const feat = extractFeature(img);
+      const pred = tf.tidy(() => classifier.predict(feat));
+      const predIdx = (await pred.argMax(1).data())[0];
+      pred.dispose(); feat.dispose();
+
+      confusion[ci][predIdx]++;
+      perClass[ci].total++;
+      if (predIdx === ci) perClass[ci].correct++;
+    }
+  }
+
+  // Accuracy per class table
+  const tbody = document.getElementById('acc-tbody');
+  tbody.innerHTML = '';
+  classData.forEach((cls,i) => {
+    const acc = perClass[i].total > 0 ? perClass[i].correct/perClass[i].total : 0;
+    const pct = (acc*100).toFixed(0);
+    const badgeCls = acc===1?'perfect':acc>=0.7?'good':'bad';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${cls.name}</strong></td>
+      <td><span class="acc-badge ${badgeCls}">${pct}%</span></td>
+      <td>${perClass[i].total}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Confusion matrix
+  const tbl = document.getElementById('matrix-table');
+  tbl.innerHTML = '';
+  // header row
+  const hrow = document.createElement('tr');
+  hrow.innerHTML = '<th>Actual \\ Predicted</th>' +
+    classData.map(c=>`<th>${c.name}</th>`).join('');
+  tbl.appendChild(hrow);
+  // data rows
+  confusion.forEach((row,ri) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<th>${classData[ri].name}</th>` +
+      row.map((v,ci) => {
+        const cls = v===0?'zero': ri===ci?'diag':'off';
+        return `<td class="${cls}">${v}</td>`;
+      }).join('');
+    tbl.appendChild(tr);
+  });
+
+  addLog('Evaluation complete ✔', 'ok');
+}
+
+// ────────────────────────────────────────────────────────
+//  Prediction
+// ────────────────────────────────────────────────────────
+function setupPrediction() {
+  const input = document.getElementById('pred-file');
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !isTrained) return;
+
+    const img = new Image();
+    img.onload = async () => {
+      // Show preview
+      const zone = document.getElementById('pred-zone');
+      zone.querySelectorAll('img').forEach(el=>el.remove());
+      const preview = document.createElement('img');
+      preview.src = img.src;
+      zone.appendChild(preview);
+
+      // Predict
+      const feat    = extractFeature(img);
+      const predTensor = tf.tidy(()=>classifier.predict(feat));
+      const scores  = await predTensor.data();
+      predTensor.dispose(); feat.dispose();
+
+      const topIdx  = scores.indexOf(Math.max(...scores));
+      const topName = classData[topIdx].name;
+      const topConf = (scores[topIdx]*100).toFixed(1);
+
+      // Verdict
+      const verdict = document.getElementById('pred-verdict');
+      verdict.classList.add('show');
+      verdict.style.background = '#f0fdf4';
+      document.getElementById('pred-verdict-val').textContent  = topName;
+      document.getElementById('pred-verdict-conf').textContent = `Confidence: ${topConf}%`;
+
+      // Bars
+      const barsEl = document.getElementById('pred-bars');
+      barsEl.innerHTML = '';
+      classData.forEach((cls,i) => {
+        const pct = (scores[i]*100).toFixed(1);
+        const isTop = i===topIdx;
+        barsEl.innerHTML += `
+          <div class="pred-bar-row">
+            <div class="pred-bar-meta">
+              <span>${cls.name}</span>
+              <span style="color:${isTop?'var(--green)':'var(--muted)'};font-weight:${isTop?'700':'500'}">${pct}%</span>
+            </div>
+            <div class="pred-bar-track">
+              <div class="pred-bar-fill ${isTop?'top':''}" style="width:0%" data-w="${pct}"></div>
+            </div>
+          </div>`;
+      });
+      // Animate bars
+      setTimeout(()=>{
+        barsEl.querySelectorAll('.pred-bar-fill').forEach(el=>{
+          el.style.width = el.dataset.w + '%';
+        });
+      }, 50);
+
+      addLog(`Prediction: "${topName}" (${topConf}%)`, 'ok');
+    };
+    img.src = URL.createObjectURL(file);
+  };
+}
+</script>
+</body>
+</html>
