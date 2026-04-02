@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CallLens — Support Call Intelligence</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+  :root {
+    --bg: #0c0c0f; --bg2: #141418; --bg3: #1c1c23; --bg4: #24242e;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+    --text: #e8e8f0; --text2: #9090a8; --text3: #5c5c72;
+    --accent: #7b6ef6; --accent2: #5a4ee0;
+    --teal: #2dd4bf; --amber: #f59e0b; --rose: #f43f5e; --green: #10b981; --blue: #3b82f6;
+    --radius: 10px; --radius-lg: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--teal)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .logo span { color: var(--text2); font-weight: 400; margin-left: 2px; font-size: 18px; }
+  .status-pill { background: rgba(16,185,129,0.12); color: var(--green); border: 1px solid rgba(16,185,129,0.2); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+  .app { display: grid; grid-template-columns: 300px 1fr; flex: 1; min-height: 0; }
+
+  aside { border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg2); }
+  .sidebar-header { padding: 20px 20px 14px; border-bottom: 1px solid var(--border); font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); }
+
+  .upload-zone { margin: 16px; border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 24px 16px; text-align: center; cursor: pointer; transition: border-color .2s, background .2s; background: var(--bg3); }
+  .upload-zone:hover { border-color: var(--accent); background: rgba(123,110,246,0.05); }
+  .upload-zone.dragover { border-color: var(--teal); background: rgba(45,212,191,0.05); }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+  .upload-zone strong { color: var(--text); }
+  .upload-zone input { display: none; }
+
+  .or-divider { display: flex; align-items: center; gap: 10px; margin: 0 16px 10px; color: var(--text3); font-size: 11px; }
+  .or-divider::before, .or-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .sample-btn { margin: 0 16px 8px; background: var(--bg4); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); padding: 10px 14px; font-size: 13px; cursor: pointer; width: calc(100% - 32px); text-align: left; transition: background .15s, color .15s; font-family: 'DM Sans', sans-serif; display: flex; align-items: center; justify-content: space-between; }
+  .sample-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+  .sample-tag { font-size: 10px; background: rgba(123,110,246,0.15); color: var(--accent); border-radius: 4px; padding: 2px 6px; }
+
+  .transcript-input-wrap { margin: 0 16px 12px; }
+  textarea.transcript-input { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: 'DM Mono', monospace; font-size: 11.5px; padding: 12px; resize: vertical; min-height: 120px; line-height: 1.6; outline: none; transition: border-color .2s; width: 100%; }
+  textarea.transcript-input:focus { border-color: var(--accent); }
+  textarea.transcript-input::placeholder { color: var(--text3); }
+
+  .analyze-btn { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: var(--radius); color: #fff; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 600; padding: 12px 20px; cursor: pointer; width: calc(100% - 32px); margin: 0 16px 16px; transition: opacity .2s, transform .1s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .analyze-btn:hover { opacity: 0.9; }
+  .analyze-btn:active { transform: scale(0.98); }
+  .analyze-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .call-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .call-item { padding: 12px 16px; cursor: pointer; border-left: 3px solid transparent; transition: background .15s, border-color .15s; display: flex; flex-direction: column; gap: 4px; }
+  .call-item:hover { background: var(--bg3); }
+  .call-item.active { border-left-color: var(--accent); background: rgba(123,110,246,0.07); }
+  .call-item-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .call-item-meta { font-size: 11px; color: var(--text3); display: flex; gap: 8px; align-items: center; }
+  .sentiment-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+  .sent-positive { background: rgba(16,185,129,0.15); color: var(--green); }
+  .sent-negative { background: rgba(244,63,94,0.15); color: var(--rose); }
+  .sent-neutral  { background: rgba(144,144,168,0.15); color: var(--text2); }
+
+  main { overflow-y: auto; display: flex; flex-direction: column; }
+
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--text3); padding: 60px 40px; text-align: center; }
+  .empty-icon { font-size: 52px; opacity: 0.4; }
+  .empty-state h2 { font-family: 'Syne', sans-serif; font-size: 22px; color: var(--text2); font-weight: 600; }
+  .empty-state p { font-size: 14px; max-width: 380px; line-height: 1.7; }
+
+  .loading-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 60px; }
+  .loader-ring { width: 56px; height: 56px; border: 2.5px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-steps { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; }
+  .loading-step { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text3); padding: 10px 14px; border-radius: var(--radius); background: var(--bg3); transition: all .3s; }
+  .loading-step.active { color: var(--text); background: var(--bg4); border: 1px solid var(--border); }
+  .loading-step.done { color: var(--green); }
+  .step-icon { font-size: 14px; width: 20px; text-align: center; }
+
+  .results { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; }
+  .results-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .call-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .call-subtitle { color: var(--text2); font-size: 13px; margin-top: 4px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; letter-spacing: -1px; }
+  .stat-sub { font-size: 11px; color: var(--text3); }
+  .sentiment-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .sentiment-bar-wrap { flex: 1; height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+  .sentiment-bar { height: 100%; border-radius: 3px; transition: width 1s cubic-bezier(.4,0,.2,1); }
+
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .section-title { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .transcript-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .transcript-toolbar { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text3); }
+  .transcript-body { padding: 16px 20px; font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.9; max-height: 300px; overflow-y: auto; }
+  .seg-agent { color: var(--blue); } .seg-customer { color: var(--teal); }
+  .seg-label { font-weight: 500; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; margin-right: 8px; }
+
+  .entities-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .entity-chip { display: flex; align-items: center; gap: 6px; background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px 5px 8px; font-size: 12px; }
+  .entity-type { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; padding: 2px 5px; border-radius: 3px; }
+  .etype-PRODUCT  { background: rgba(123,110,246,0.15); color: var(--accent); }
+  .etype-PLAN     { background: rgba(59,130,246,0.15);  color: var(--blue); }
+  .etype-LOCATION { background: rgba(45,212,191,0.15);  color: var(--teal); }
+  .etype-PERSON   { background: rgba(245,158,11,0.15);  color: var(--amber); }
+  .etype-ISSUE    { background: rgba(244,63,94,0.15);   color: var(--rose); }
+  .etype-DATE     { background: rgba(16,185,129,0.15);  color: var(--green); }
+  .etype-OTHER    { background: rgba(144,144,168,0.1);  color: var(--text2); }
+
+  .moment-list { display: flex; flex-direction: column; gap: 8px; }
+  .moment-card { background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid; border-radius: 0 var(--radius) var(--radius) 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .moment-card.escalation { border-left-color: var(--rose); }
+  .moment-card.resolution { border-left-color: var(--green); }
+  .moment-card.complaint  { border-left-color: var(--amber); }
+  .moment-card.positive   { border-left-color: var(--teal); }
+  .moment-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); }
+  .moment-text  { font-size: 13px; line-height: 1.5; color: var(--text); }
+
+  .summary-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; font-size: 14px; line-height: 1.7; color: var(--text2); }
+
+  .action-list { display: flex; flex-direction: column; gap: 6px; }
+  .action-item { display: flex; align-items: flex-start; gap: 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 14px; font-size: 13px; color: var(--text); }
+  .action-num { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500; width: 20px; height: 20px; flex-shrink: 0; background: var(--bg4); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--text3); margin-top: 1px; }
+
+  .sentiment-chart { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; position: relative; height: 130px; overflow: hidden; }
+  .chart-canvas { width: 100%; height: 100%; }
+
+  .search-bar-wrap { display: flex; gap: 10px; }
+  .search-input { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 10px 14px; outline: none; transition: border-color .2s; }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text3); }
+  .search-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); padding: 10px 16px; cursor: pointer; font-size: 13px; transition: background .15s, color .15s; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .search-btn:hover { background: var(--bg3); color: var(--text); }
+  .search-results { display: flex; flex-direction: column; gap: 8px; }
+  .search-hit { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; font-size: 13px; line-height: 1.6; color: var(--text2); }
+  .search-hit .highlight { color: var(--accent); background: rgba(123,110,246,0.1); padding: 1px 2px; border-radius: 3px; }
+  .search-hit-score { font-size: 10px; color: var(--text3); margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+  .score-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+  .score-ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; }
+  .score-ring-label .num { font-size: 18px; font-weight: 700; line-height: 1; }
+  .score-ring-label .lbl { font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .indexed-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(45,212,191,0.1); color: var(--teal); border: 1px solid rgba(45,212,191,0.2); border-radius: 5px; padding: 3px 8px; font-size: 11px; font-weight: 500; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🎙</div>
+    CallLens <span>/ Support Intelligence</span>
+  </div>
+  <div style="display:flex; align-items:center; gap:24px;">
+    <div style="text-align:right; line-height:1.5;">
+      <div style="font-family:'Syne',sans-serif; font-size:14px; font-weight:600; color:var(--text);">Gayatri Vidhate</div>
+      <div style="font-size:12px; color:var(--text2);">UID: CM23039 &nbsp;·&nbsp; MLT Post Lab Project</div>
+    </div>
+    <div class="status-pill"><div class="status-dot"></div>AI Connected</div>
+  </div>
+</header>
+
+<div class="app">
+  <aside>
+    <div class="sidebar-header">📞 Calls</div>
+
+    <div class="upload-zone" id="uploadZone">
+      <div class="upload-icon">📂</div>
+      <p><strong>Drop audio or txt file</strong><br>MP3, WAV, M4A, TXT supported</p>
+      <input type="file" accept="audio/*,.txt" id="fileInput">
+    </div>
+
+    <div class="or-divider">or paste transcript</div>
+
+    <div class="transcript-input-wrap">
+      <textarea class="transcript-input" id="transcriptInput"
+        placeholder="Paste raw call transcript here…&#10;&#10;Agent: Thank you for calling…&#10;Customer: Hi, I need help with…"></textarea>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" onclick="startAnalysis()">
+      <span>✨</span> Analyze Call
+    </button>
+
+    <div class="or-divider">or try a sample</div>
+    <button class="sample-btn" onclick="loadSample(0)"><span>📦 Billing dispute — frustrated</span><span class="sample-tag">SAMPLE</span></button>
+    <button class="sample-btn" onclick="loadSample(1)"><span>🔧 Technical support — positive</span><span class="sample-tag">SAMPLE</span></button>
+    <button class="sample-btn" onclick="loadSample(2)"><span>🚚 Shipping issue — escalated</span><span class="sample-tag">SAMPLE</span></button>
+
+    <div class="call-list" id="callList"></div>
+  </aside>
+
+  <main id="main">
+    <div class="empty-state">
+      <div class="empty-icon">🎙️</div>
+      <h2>Analyze your first call</h2>
+      <p>Paste a call transcript or load a sample to extract sentiment, entities, key moments, and action items using AI.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+
+// ─────────────────────────────────────────────
+// ✏️  ADD YOUR API KEY HERE — do not share this file publicly
+// ─────────────────────────────────────────────
+const API_KEY = 'API_KEY_GOES_HERE';
+// ─────────────────────────────────────────────
+
+
+// ─────────────────────────────────────────────
+// SAMPLES
+// ─────────────────────────────────────────────
+const SAMPLES = [
+`Agent: Thank you for calling CloudBilling support, my name is Sarah. How can I help you today?
+Customer: Hi Sarah, I'm really frustrated right now. I just got charged $89.99 for the Pro Plan when I clearly cancelled last month. I'm in Chicago and I need this sorted out immediately.
+Agent: I completely understand your frustration, and I sincerely apologize for this experience. Let me pull up your account right away. Can I get your name please?
+Customer: It's Marcus Johnson. Account number 447892. This is the second time this has happened. Last time it took three weeks to get a refund.
+Agent: Marcus, I see your account here. You're absolutely right — there was an error in our cancellation processing for your Pro Plan. I can see the charge of $89.99 on March 15th.
+Customer: I just want my money back. This is completely unacceptable.
+Agent: I completely agree, and I'm issuing a full refund to your Visa card ending in 4821 right now. It will appear within 3-5 business days. I'm also going to escalate this billing error to our technical team.
+Customer: Thank you. And can you confirm the Pro Plan is actually cancelled now?
+Agent: Yes, Marcus, I've confirmed the cancellation and added a note to your account. You'll receive a confirmation email at m.johnson@email.com within the hour. Is there anything else I can help you with?
+Customer: No, that's all. I appreciate you sorting this out quickly.
+Agent: Of course. Have a great day!`,
+
+`Agent: Hi, you've reached TechSupport for StreamLine Pro. I'm Alex. What can I help you with today?
+Customer: Hey Alex! I'm having trouble connecting my StreamLine device to my home WiFi. It keeps saying "Authentication Failed".
+Agent: No worries, that's usually a quick fix! Are you using the StreamLine 4K model or the standard HD?
+Customer: It's the 4K Pro, I got it last week. I'm in Seattle and everything else connects to WiFi fine.
+Agent: Perfect, the 4K Pro has a known quirk with WPA3-only networks. Can you check if your network is set to WPA3-only or WPA2/WPA3 mixed?
+Customer: Oh interesting! Let me check... it says WPA3 Personal only.
+Agent: That's our culprit! If you change it to WPA2/WPA3 compatibility mode, the StreamLine 4K Pro will connect right away.
+Customer: Let me try the router setting first — it just connected! Oh wow, that was fast.
+Agent: Excellent! The firmware update is still worth doing when you have 10 minutes, it improves streaming stability. I'll send the instructions to your email.
+Customer: Perfect, yes please. This is great service, thank you Alex!
+Agent: My pleasure! Enjoy your new StreamLine 4K Pro. Have a wonderful day!`,
+
+`Agent: Thanks for contacting PrimeShip support. I'm David. How can I assist?
+Customer: David, I am beyond upset. I ordered a birthday cake for my daughter's party — order 78234 — it was supposed to arrive yesterday and it's STILL not here. The party is tomorrow in Austin.
+Agent: I'm so sorry to hear this, that's incredibly stressful. Let me look at order 78234 right now.
+Customer: This better be fixable. Her name is Emma and she's turning 8. I ordered the Unicorn Dream Cake from Sweet Celebrations two weeks ago.
+Agent: There was a carrier delay with FedEx due to severe weather. The package is currently in Dallas and there's another delay notice.
+Customer: This is completely unacceptable. What are you going to do about it?
+Agent: I'm issuing you a full refund of $127.50 immediately and adding a $50 store credit. I'm also contacting Sweet Celebrations directly to find an Austin-based partner who could fulfill this locally as backup.
+Customer: Yes please. My number is the one on the account.
+Agent: Absolutely. I'm escalating this right now and will personally follow up within the hour.`
+];
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let calls = [];
+let activeCallIdx = -1;
+let searchIndex = [];
+
+function loadSample(i) {
+  document.getElementById('transcriptInput').value = SAMPLES[i];
+}
+
+// ─────────────────────────────────────────────
+// FILE UPLOAD
+// ─────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.name.endsWith('.txt')) {
+    const reader = new FileReader();
+    reader.onload = ev => document.getElementById('transcriptInput').value = ev.target.result;
+    reader.readAsText(file);
+  } else {
+    document.getElementById('transcriptInput').value =
+      `[Audio file "${file.name}" received. In a full deployment this would be sent to a speech-to-text service. For now, please paste the transcript as text.]`;
+  }
+});
+
+const uz = document.getElementById('uploadZone');
+uz.addEventListener('click', () => document.getElementById('fileInput').click());
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('dragover'); });
+uz.addEventListener('dragleave', () => uz.classList.remove('dragover'));
+uz.addEventListener('drop', e => {
+  e.preventDefault(); uz.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) { document.getElementById('fileInput').files = e.dataTransfer.files; document.getElementById('fileInput').dispatchEvent(new Event('change')); }
+});
+
+// ─────────────────────────────────────────────
+// CORE API HELPER  (Groq API)
+// ─────────────────────────────────────────────
+async function callAI(systemPrompt, userContent, maxTokens = 2000) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',  // 🔥 Groq model
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent }
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.3
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Groq API error ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.choices[0].message.content.trim();
+}
+
+// ─────────────────────────────────────────────
+// ANALYSIS
+// ─────────────────────────────────────────────
+async function startAnalysis() {
+  const transcript = document.getElementById('transcriptInput').value.trim();
+  if (!transcript) { alert('Please paste a transcript or load a sample first.'); return; }
+
+  if (!API_KEY || API_KEY === 'YOUR_GROK_API_KEY_HERE') {
+    alert('Open this HTML file in a text editor and replace YOUR_GROK_API_KEY_HERE with your actual API key, then reload.');
+    return;
+  }
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  showLoading();
+
+  try {
+    const result = await analyzeTranscript(transcript);
+    const record = { transcript, ...result, id: Date.now() };
+    calls.push(record);
+    searchIndex.push({ callIdx: calls.length - 1, sentences: transcript.split(/(?<=[.!?])\s+/) });
+    addCallToList(record, calls.length - 1);
+    showResults(record, calls.length - 1);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showLoading() {
+  const steps = [
+    { icon: '📝', text: 'Parsing transcript segments…' },
+    { icon: '🎭', text: 'Running sentiment analysis…' },
+    { icon: '🏷️', text: 'Extracting entities…' },
+    { icon: '🔍', text: 'Identifying key moments…' },
+    { icon: '📊', text: 'Building search index…' },
+  ];
+  document.getElementById('main').innerHTML = `
+    <div class="loading-panel">
+      <div class="loader-ring"></div>
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:600;">Analyzing Call</div>
+      <div class="loading-steps">
+        ${steps.map((s, i) => `
+          <div class="loading-step ${i === 0 ? 'active' : ''}" id="lstep${i}">
+            <span class="step-icon">${s.icon}</span>${s.text}
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  let cur = 0;
+  const iv = setInterval(() => {
+    if (cur < steps.length - 1) {
+      const el = document.getElementById(`lstep${cur}`);
+      if (el) { el.classList.replace('active', 'done'); el.querySelector('.step-icon').textContent = '✅'; }
+      cur++;
+      document.getElementById(`lstep${cur}`)?.classList.add('active');
+    } else { clearInterval(iv); }
+  }, 900);
+}
+
+function showError(msg) {
+  document.getElementById('main').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">❌</div>
+      <h2>Analysis Failed</h2>
+      <p style="color:#f43f5e;">${escHtml(msg)}</p>
+    </div>`;
+}
+
+async function analyzeTranscript(transcript) {
+  const system = `You are an expert customer support call analyst. Return ONLY valid JSON — no markdown fences, no explanation.`;
+  const user = `Analyze this call transcript and return ONLY a valid JSON object.
+
+TRANSCRIPT:
+${transcript}
+
+Return exactly this JSON structure:
+{
+  "callTitle": "Short descriptive title (max 6 words)",
+  "duration": "Estimated duration like '4m 32s'",
+  "wordCount": <number>,
+  "agentName": "Agent name or Unknown",
+  "customerName": "Customer name or Unknown",
+  "overallSentiment": "positive or neutral or negative",
+  "sentimentScore": <number 0-100>,
+  "sentimentArc": [<exactly 8 numbers 0-100 showing sentiment flow>],
+  "summary": "2-3 sentence summary",
+  "resolution": "resolved or escalated or unresolved",
+  "csat": <number 1-10>,
+  "entities": [{ "text": "entity text", "type": "PRODUCT or PLAN or LOCATION or PERSON or ISSUE or DATE or OTHER" }],
+  "segments": [{ "speaker": "Agent or Customer", "text": "what they said" }],
+  "keyMoments": [{ "type": "escalation or resolution or complaint or positive", "text": "quote or description", "timestamp": "~0:45" }],
+  "actionItems": ["item 1", "item 2"],
+  "topics": ["topic1", "topic2"]
+}
+
+Rules: sentimentArc must have exactly 8 values. Extract all real entities. Include 3-6 key moments. Include 2-5 action items.`;
+
+  const raw = await callAI(system, user, 2000);
+  const clean = raw.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
+  try { return JSON.parse(clean); }
+  catch (e) { throw new Error('AI returned invalid JSON. Please try again.'); }
+}
+
+// ─────────────────────────────────────────────
+// SIDEBAR
+// ─────────────────────────────────────────────
+function addCallToList(call, idx) {
+  document.querySelectorAll('.call-item').forEach(el => el.classList.remove('active'));
+  const item = document.createElement('div');
+  item.className = 'call-item active';
+  item.innerHTML = `
+    <div class="call-item-title">${escHtml(call.callTitle)}</div>
+    <div class="call-item-meta">
+      <span>${call.duration}</span>
+      <span class="sentiment-badge sent-${call.overallSentiment}">${call.overallSentiment}</span>
+    </div>`;
+  item.onclick = () => showResults(call, idx);
+  document.getElementById('callList').appendChild(item);
+}
+
+function setActive(idx) {
+  activeCallIdx = idx;
+  document.querySelectorAll('.call-item').forEach((el, i) => el.classList.toggle('active', i === idx));
+}
+
+// ─────────────────────────────────────────────
+// RENDER RESULTS
+// ─────────────────────────────────────────────
+function showResults(call, idx) {
+  setActive(idx);
+
+  const sentColor = call.overallSentiment === 'positive' ? '#10b981' :
+                    call.overallSentiment === 'negative' ? '#f43f5e' : '#9090a8';
+  const resColor  = call.resolution === 'resolved'  ? '#10b981' :
+                    call.resolution === 'escalated' ? '#f59e0b' : '#f43f5e';
+
+  const segHtml = (call.segments || []).map(s =>
+    `<div><span class="seg-label ${s.speaker === 'Agent' ? 'seg-agent' : 'seg-customer'}">${s.speaker}</span>${escHtml(s.text)}</div>`
+  ).join('');
+
+  const entityHtml = (call.entities || []).map(e =>
+    `<div class="entity-chip"><span class="entity-type etype-${e.type || 'OTHER'}">${e.type || '?'}</span>${escHtml(e.text)}</div>`
+  ).join('');
+
+  const momentHtml = (call.keyMoments || []).map(m =>
+    `<div class="moment-card ${m.type}">
+       <div class="moment-label">${m.type} · ${m.timestamp || ''}</div>
+       <div class="moment-text">${escHtml(m.text)}</div>
+     </div>`
+  ).join('');
+
+  const actionHtml = (call.actionItems || []).map((a, i) =>
+    `<div class="action-item"><div class="action-num">${i + 1}</div><span>${escHtml(a)}</span></div>`
+  ).join('');
+
+  const arc  = call.sentimentArc || [50,50,50,50,50,50,50,50];
+  const W = 400, H = 80;
+  const pts  = arc.map((v, i) => `${20 + (i / (arc.length - 1)) * (W - 40)},${H - 10 - (v / 100) * (H - 20)}`);
+  const pathD = 'M' + pts.join(' L');
+  const fillD = `${pathD} L${W - 20},${H - 10} L20,${H - 10} Z`;
+
+  const score  = call.csat || 7;
+  const circ   = 2 * Math.PI * 28;
+  const dash   = circ * (score / 10);
+  const ringCol = score >= 7 ? '#10b981' : score >= 4 ? '#f59e0b' : '#f43f5e';
+
+  document.getElementById('main').innerHTML = `
+    <div class="results">
+
+      <div class="results-header">
+        <div>
+          <div class="call-title">${escHtml(call.callTitle)}</div>
+          <div class="call-subtitle">
+            ${escHtml(call.agentName)} → ${escHtml(call.customerName)}
+            &nbsp;·&nbsp; ${call.duration}
+            &nbsp;·&nbsp; <span class="indexed-badge">🔍 indexed</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div class="score-ring">
+            <svg width="72" height="72" viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="28" fill="none" stroke="var(--bg4)" stroke-width="5"/>
+              <circle cx="36" cy="36" r="28" fill="none" stroke="${ringCol}" stroke-width="5"
+                stroke-dasharray="${dash.toFixed(1)} ${(circ - dash).toFixed(1)}"
+                stroke-linecap="round" transform="rotate(-90 36 36)"/>
+            </svg>
+            <div class="score-ring-label">
+              <span class="num" style="color:${ringCol}">${score}</span>
+              <span class="lbl">CSAT</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;">
+            <div style="color:var(--text3);">Resolution</div>
+            <div style="font-weight:600;color:${resColor};text-transform:capitalize;">${call.resolution}</div>
+            <div style="color:var(--text3);margin-top:4px;">Sentiment</div>
+            <div style="font-weight:600;color:${sentColor};text-transform:capitalize;">${call.overallSentiment}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Sentiment Score</div>
+          <div class="stat-value" style="color:${sentColor}">${call.sentimentScore}</div>
+          <div class="sentiment-row">
+            <div class="sentiment-bar-wrap"><div class="sentiment-bar" style="width:${call.sentimentScore}%;background:${sentColor}"></div></div>
+            <span style="font-size:11px;color:var(--text3)">/100</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Duration</div>
+          <div class="stat-value" style="font-size:22px;letter-spacing:-0.5px">${call.duration}</div>
+          <div class="stat-sub">${call.wordCount || '—'} words</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Entities Found</div>
+          <div class="stat-value">${(call.entities || []).length}</div>
+          <div class="stat-sub">${[...new Set((call.entities || []).map(e => e.type))].join(', ') || '—'}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Action Items</div>
+          <div class="stat-value">${(call.actionItems || []).length}</div>
+          <div class="stat-sub">${(call.keyMoments || []).length} key moments</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Sentiment Arc</div>
+        <div class="sentiment-chart">
+          <svg class="chart-canvas" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="arcGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${sentColor}" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="${sentColor}" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+            <path d="${fillD}" fill="url(#arcGrad)"/>
+            <path d="${pathD}" fill="none" stroke="${sentColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            ${arc.map((v, i) => {
+              const x = 20 + (i / (arc.length - 1)) * (W - 40);
+              const y = H - 10 - (v / 100) * (H - 20);
+              return `<circle cx="${x}" cy="${y}" r="3" fill="${sentColor}"/>`;
+            }).join('')}
+          </svg>
+          <div style="position:absolute;bottom:4px;left:12px;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">Call start</div>
+          <div style="position:absolute;bottom:4px;right:12px;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">Call end</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Summary</div>
+        <div class="summary-card">${escHtml(call.summary)}</div>
+      </div>
+
+      <div class="two-col">
+        <div class="section">
+          <div class="section-title">Entities</div>
+          <div class="entities-grid">${entityHtml || '<span style="color:var(--text3);font-size:13px">No entities found</span>'}</div>
+        </div>
+        <div class="section">
+          <div class="section-title">Action Items</div>
+          <div class="action-list">${actionHtml || '<span style="color:var(--text3);font-size:13px">None</span>'}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Key Moments</div>
+        <div class="moment-list">${momentHtml || '<span style="color:var(--text3);font-size:13px">No moments identified</span>'}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Cleaned Transcript</div>
+        <div class="transcript-card">
+          <div class="transcript-toolbar">
+            <span style="font-family:'DM Mono',monospace">${(call.segments || []).length} turns</span>
+            <span style="margin-left:auto">
+              <span style="color:var(--blue)">■</span> Agent &nbsp;
+              <span style="color:var(--teal)">■</span> Customer
+            </span>
+          </div>
+          <div class="transcript-body">${segHtml || escHtml(call.transcript)}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Semantic Search</div>
+        <div class="search-bar-wrap">
+          <input class="search-input" id="searchInput" placeholder="Search across all indexed calls… e.g. 'billing issue' or 'frustrated customer'"/>
+          <button class="search-btn" onclick="doSearch()">🔍 Search</button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+
+    </div>`;
+}
+
+// ─────────────────────────────────────────────
+// SEMANTIC SEARCH
+// ─────────────────────────────────────────────
+async function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  const resultsEl = document.getElementById('searchResults');
+  if (searchIndex.length === 0) {
+    resultsEl.innerHTML = '<div class="search-hit">No indexed calls yet. Analyze a call first.</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = '<div class="search-hit" style="color:var(--text3)">Searching…</div>';
+
+  const corpus = [];
+  searchIndex.forEach((idx, si) => {
+    idx.sentences.forEach(s => { if (s.trim().length > 20) corpus.push({ si, text: s.trim() }); });
+  });
+
+  try {
+    const raw = await callAI(
+      'You are a semantic search engine. Return ONLY a JSON array of integer indices — no explanation, no markdown.',
+      `Query: "${query}"
+
+Sentences:
+${corpus.map((c, i) => `${i}: ${c.text}`).join('\n')}
+
+Return the indices (0-based) of the top 5 most semantically relevant sentences, sorted by relevance.
+Format: [0, 3, 7, ...]`,
+      400
+    );
+
+    const clean = raw.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
+    const indices = JSON.parse(clean);
+    const hits = indices.slice(0, 5).map(i => corpus[i]).filter(Boolean);
+
+    if (!hits.length) {
+      resultsEl.innerHTML = '<div class="search-hit" style="color:var(--text3)">No relevant results found.</div>';
+      return;
+    }
+
+    const callTitles = calls.map(c => c.callTitle);
+    const rx = new RegExp(query.split(/\s+/).filter(w => w.length > 2).join('|'), 'gi');
+
+    resultsEl.innerHTML = hits.map((h, rank) => {
+      const title = callTitles[searchIndex[h.si]?.callIdx] || 'Unknown Call';
+      const hl = h.text.replace(rx, m => `<span class="highlight">${m}</span>`);
+      return `<div class="search-hit">
+        <div>${hl}</div>
+        <div class="search-hit-score">📞 ${escHtml(title)} · relevance #${rank + 1}</div>
+      </div>`;
+    }).join('');
+
+  } catch (e) {
+    resultsEl.innerHTML = `<div class="search-hit" style="color:var(--rose)">Search failed: ${escHtml(e.message)}</div>`;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.activeElement?.id === 'searchInput') doSearch();
+});
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+</script>
+</body>
+</html>
